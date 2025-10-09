@@ -232,11 +232,88 @@ def summarize_daily_images(
             logging.info("deleted %d images older than 24 hours", deleted_count)
 
 
+def summarize_daily_vision(
+    data_dir: Path,
+    openrouter_key: str,
+    openrouter_model: str,
+    memory_system
+) -> None:
+    """
+    Summarize all vision descriptions from yesterday.
+    Consolidates individual descriptions into daily summary.
+    """
+    summaries_dir = data_dir / "daily_summaries"
+    summaries_dir.mkdir(exist_ok=True)
+    
+    # Get yesterday's date
+    yesterday = datetime.now() - timedelta(days=1)
+    date_key = yesterday.strftime("%Y-%m-%d")
+    
+    # Check if already summarized
+    summary_file = summaries_dir / f"vision_{date_key}.json"
+    if summary_file.exists():
+        logging.info("vision for %s already summarized", date_key)
+        return
+    
+    # Collect all vision facts from yesterday
+    vision_facts = [(k, v) for k, v in memory_system.facts.items() if k.startswith("vision_")]
+    yesterday_vision = []
+    
+    for key, value in vision_facts:
+        try:
+            # Extract timestamp from key: vision_20251009_153045
+            timestamp_str = key.replace("vision_", "")
+            # Parse YYYYMMDD_HHMMSS
+            event_datetime = datetime.strptime(timestamp_str, "%Y%m%d_%H%M%S")
+            if event_datetime.date() == yesterday.date():
+                yesterday_vision.append({"key": key, "value": value})
+        except Exception:
+            continue
+    
+    if not yesterday_vision:
+        logging.info("no vision events for %s", date_key)
+        return
+    
+    # Build content for summarization
+    vision_text = "\n".join([event["value"] for event in yesterday_vision])
+    
+    # Summarize
+    logging.info("summarizing %d vision events from %s", len(yesterday_vision), date_key)
+    summary = summarize_with_llm(
+        openrouter_key,
+        openrouter_model,
+        vision_text,
+        "computer vision observations"
+    )
+    
+    # Store summary
+    summary_data = {
+        "date": date_key,
+        "vision_event_count": len(yesterday_vision),
+        "summary": summary,
+        "raw_descriptions": [event["value"] for event in yesterday_vision]
+    }
+    
+    with open(summary_file, "w") as f:
+        json.dump(summary_data, f, indent=2)
+    
+    logging.info("saved vision summary for %s", date_key)
+    
+    # Archive individual vision facts to the summary and remove from active facts
+    for event in yesterday_vision:
+        if event["key"] in memory_system.facts:
+            del memory_system.facts[event["key"]]
+            logging.debug("archived and removed vision fact: %s", event["key"])
+    
+    memory_system.save()
+    logging.info("cleaned up %d individual vision facts (replaced with daily summary)", len(yesterday_vision))
+
+
 def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str, memory_system) -> None:
     """
     Run all daily cleanup tasks:
     - Summarize transcripts
-    - Summarize images
+    - Summarize vision events
     - Delete old raw files
     """
     logging.info("starting daily cleanup and summarization")
@@ -245,6 +322,11 @@ def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str
         summarize_daily_transcripts(data_dir, openrouter_key, openrouter_model, memory_system)
     except Exception as e:
         logging.exception("failed to summarize transcripts: %s", e)
+    
+    try:
+        summarize_daily_vision(data_dir, openrouter_key, openrouter_model, memory_system)
+    except Exception as e:
+        logging.exception("failed to summarize vision: %s", e)
     
     try:
         summarize_daily_images(data_dir, openrouter_key, openrouter_model)
