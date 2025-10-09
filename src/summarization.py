@@ -1,0 +1,255 @@
+"""
+Daily summarization system for audio transcripts, images, and video.
+Keeps raw files for current day only, then summarizes and archives as text.
+"""
+import json
+import logging
+from pathlib import Path
+from datetime import datetime, timedelta
+from typing import List, Dict
+import requests
+
+
+def summarize_with_llm(api_key: str, model: str, content: str, content_type: str) -> str:
+    """
+    Use LLM to summarize content (transcripts, image descriptions, etc).
+    """
+    url = "https://openrouter.ai/api/v1/chat/completions"
+    headers = {
+        "Authorization": f"Bearer {api_key}",
+        "Content-Type": "application/json",
+    }
+    
+    prompt = f"""Summarize the following {content_type} from Josh's day. 
+Extract key activities, topics discussed, patterns, and notable events.
+Be concise but preserve important details.
+
+{content_type.capitalize()}:
+{content}
+
+Summary:"""
+    
+    payload = {
+        "model": model,
+        "messages": [
+            {"role": "system", "content": "You are a summarization assistant. Be concise and preserve key details."},
+            {"role": "user", "content": prompt}
+        ],
+        "temperature": 0.3,
+        "max_tokens": 500,
+    }
+    
+    try:
+        resp = requests.post(url, headers=headers, json=payload, timeout=60)
+        resp.raise_for_status()
+        data = resp.json()
+        return data["choices"][0]["message"]["content"].strip()
+    except Exception as e:
+        logging.error("summarization failed: %s", e)
+        return f"[Summarization failed: {str(e)}]"
+
+
+def summarize_daily_transcripts(
+    data_dir: Path,
+    openrouter_key: str,
+    openrouter_model: str,
+    memory_system
+) -> None:
+    """
+    Summarize all transcripts from yesterday and store summary.
+    Delete old audio files after summarization.
+    """
+    summaries_dir = data_dir / "daily_summaries"
+    summaries_dir.mkdir(exist_ok=True)
+    
+    audio_dir = data_dir / "audio"
+    
+    # Get yesterday's date
+    yesterday = datetime.now() - timedelta(days=1)
+    date_key = yesterday.strftime("%Y-%m-%d")
+    
+    # Check if already summarized
+    summary_file = summaries_dir / f"transcripts_{date_key}.json"
+    if summary_file.exists():
+        logging.info("transcripts for %s already summarized", date_key)
+        return
+    
+    # Collect all user messages from yesterday
+    yesterday_transcripts = []
+    for msg in memory_system.conversation:
+        if msg.get("role") != "user":
+            continue
+        timestamp_str = msg.get("timestamp", "")
+        if not timestamp_str:
+            continue
+        try:
+            msg_date = datetime.fromisoformat(timestamp_str).date()
+            if msg_date == yesterday.date():
+                yesterday_transcripts.append({
+                    "timestamp": timestamp_str,
+                    "content": msg.get("content", "")
+                })
+        except Exception:
+            continue
+    
+    if not yesterday_transcripts:
+        logging.info("no transcripts found for %s", date_key)
+        return
+    
+    # Build content for summarization
+    transcript_text = "\n".join([
+        f"[{t['timestamp']}] {t['content']}" for t in yesterday_transcripts
+    ])
+    
+    # Summarize
+    logging.info("summarizing %d transcripts from %s", len(yesterday_transcripts), date_key)
+    summary = summarize_with_llm(
+        openrouter_key,
+        openrouter_model,
+        transcript_text,
+        "audio transcripts"
+    )
+    
+    # Store summary
+    summary_data = {
+        "date": date_key,
+        "transcript_count": len(yesterday_transcripts),
+        "summary": summary,
+        "raw_transcripts": yesterday_transcripts  # Keep for reference
+    }
+    
+    with open(summary_file, "w") as f:
+        json.dump(summary_data, f, indent=2)
+    
+    logging.info("saved transcript summary for %s: %s", date_key, summary_file)
+    
+    # Delete old audio files (older than 24 hours)
+    if audio_dir.exists():
+        cutoff_time = datetime.now() - timedelta(hours=24)
+        deleted_count = 0
+        for audio_file in audio_dir.glob("audio_*.wav"):
+            try:
+                file_mtime = datetime.fromtimestamp(audio_file.stat().st_mtime)
+                if file_mtime < cutoff_time:
+                    audio_file.unlink()
+                    deleted_count += 1
+            except Exception as e:
+                logging.warning("failed to delete %s: %s", audio_file, e)
+        
+        if deleted_count > 0:
+            logging.info("deleted %d audio files older than 24 hours", deleted_count)
+
+
+def summarize_daily_images(
+    data_dir: Path,
+    openrouter_key: str,
+    openrouter_model: str
+) -> None:
+    """
+    Summarize image descriptions from yesterday.
+    Delete old images after summarization.
+    """
+    summaries_dir = data_dir / "daily_summaries"
+    summaries_dir.mkdir(exist_ok=True)
+    
+    images_dir = data_dir / "images"
+    descriptions_file = data_dir / "image_descriptions.json"
+    
+    # Get yesterday's date
+    yesterday = datetime.now() - timedelta(days=1)
+    date_key = yesterday.strftime("%Y-%m-%d")
+    
+    # Check if already summarized
+    summary_file = summaries_dir / f"images_{date_key}.json"
+    if summary_file.exists():
+        logging.info("images for %s already summarized", date_key)
+        return
+    
+    # Load image descriptions
+    if not descriptions_file.exists():
+        logging.info("no image descriptions found")
+        return
+    
+    try:
+        with open(descriptions_file, "r") as f:
+            all_descriptions = json.load(f)
+    except Exception as e:
+        logging.error("failed to load image descriptions: %s", e)
+        return
+    
+    # Filter for yesterday
+    yesterday_descriptions = [
+        desc for desc in all_descriptions
+        if desc.get("date", "").startswith(date_key)
+    ]
+    
+    if not yesterday_descriptions:
+        logging.info("no image descriptions for %s", date_key)
+        return
+    
+    # Build content for summarization
+    desc_text = "\n".join([
+        f"[{d.get('timestamp', '')}] Motion detected: {d.get('description', '')}"
+        for d in yesterday_descriptions
+    ])
+    
+    # Summarize
+    logging.info("summarizing %d image descriptions from %s", len(yesterday_descriptions), date_key)
+    summary = summarize_with_llm(
+        openrouter_key,
+        openrouter_model,
+        desc_text,
+        "motion detection events"
+    )
+    
+    # Store summary
+    summary_data = {
+        "date": date_key,
+        "image_count": len(yesterday_descriptions),
+        "summary": summary,
+        "descriptions": yesterday_descriptions
+    }
+    
+    with open(summary_file, "w") as f:
+        json.dump(summary_data, f, indent=2)
+    
+    logging.info("saved image summary for %s", date_key)
+    
+    # Delete old images (older than 24 hours)
+    if images_dir.exists():
+        cutoff_time = datetime.now() - timedelta(hours=24)
+        deleted_count = 0
+        for img_file in images_dir.glob("img_*.jpg"):
+            try:
+                file_mtime = datetime.fromtimestamp(img_file.stat().st_mtime)
+                if file_mtime < cutoff_time:
+                    img_file.unlink()
+                    deleted_count += 1
+            except Exception as e:
+                logging.warning("failed to delete %s: %s", img_file, e)
+        
+        if deleted_count > 0:
+            logging.info("deleted %d images older than 24 hours", deleted_count)
+
+
+def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str, memory_system) -> None:
+    """
+    Run all daily cleanup tasks:
+    - Summarize transcripts
+    - Summarize images
+    - Delete old raw files
+    """
+    logging.info("starting daily cleanup and summarization")
+    
+    try:
+        summarize_daily_transcripts(data_dir, openrouter_key, openrouter_model, memory_system)
+    except Exception as e:
+        logging.exception("failed to summarize transcripts: %s", e)
+    
+    try:
+        summarize_daily_images(data_dir, openrouter_key, openrouter_model)
+    except Exception as e:
+        logging.exception("failed to summarize images: %s", e)
+    
+    logging.info("daily cleanup completed")
+

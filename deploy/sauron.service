@@ -1,0 +1,21 @@
+[Unit]
+Description=Sauron Pi Assistant
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=pi
+WorkingDirectory=/home/pi/Sauron
+Environment=PYTHONUNBUFFERED=1
+Environment=PYTHONPATH=/home/pi/Sauron
+EnvironmentFile=/home/pi/Sauron/.env
+ExecStart=/home/pi/Sauron/.venv/bin/python3 -m src.main
+Restart=always
+RestartSec=10
+StandardOutput=append:/home/pi/sauron_data/logs/sauron.log
+StandardError=append:/home/pi/sauron_data/logs/sauron_error.log
+
+[Install]
+WantedBy=multi-user.target
+
