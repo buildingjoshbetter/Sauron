@@ -82,6 +82,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     current_stream_transcript = ""
     last_stream_timestamp = 0
     
+    # Track recent vision descriptions (keep last 5)
+    recent_vision_descriptions: list[dict] = []
+    
     while True:
         try:
             # Prefer audio, but poll both queues
@@ -111,12 +114,26 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                     )
                     
                     if vision_description:
-                        # Store in memory silently (no SMS)
+                        # Add to recent vision descriptions
                         timestamp = datetime.now().isoformat()
-                        vision_fact_key = f"vision_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
-                        memory.facts[vision_fact_key] = f"[{timestamp}] Vision: {vision_description}"
+                        vision_event = {
+                            "timestamp": timestamp,
+                            "description": vision_description,
+                            "motion_score": motion.motion_score
+                        }
+                        recent_vision_descriptions.append(vision_event)
+                        
+                        # Keep only last 5 vision descriptions
+                        if len(recent_vision_descriptions) > 5:
+                            # Summarize and archive the oldest one
+                            old_event = recent_vision_descriptions.pop(0)
+                            vision_fact_key = f"vision_{datetime.fromisoformat(old_event['timestamp']).strftime('%Y%m%d_%H%M%S')}"
+                            memory.facts[vision_fact_key] = f"[{old_event['timestamp']}] Vision: {old_event['description']}"
+                            logging.info("archived vision event to memory: %s", old_event['description'][:100])
+                        
+                        # Always save after vision update
                         memory.save()
-                        logging.info("stored vision event in memory: %s", vision_description[:100])
+                        logging.info("stored vision event (total: %d recent): %s", len(recent_vision_descriptions), vision_description[:100])
                 except Exception as e:
                     logging.exception("vision processing failed: %s", e)
 
@@ -207,14 +224,27 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                 # Build context with vision facts
                                 context = memory.build_context_window(max_recent=30, current_query=text)
                                 
-                                # Get recent vision facts
-                                vision_facts = [(k, v) for k, v in memory.facts.items() if k.startswith("vision_")]
-                                recent_vision = sorted(vision_facts, reverse=True)[:5]  # Last 5 vision events
+                                # Build vision context from recent clips + archived facts
+                                vision_context_parts = []
                                 
-                                vision_context = "\n".join([f"- {v}" for k, v in recent_vision])
+                                # Add recent vision descriptions (last 5 in memory)
+                                if recent_vision_descriptions:
+                                    vision_context_parts.append("Recent vision (last few minutes):")
+                                    for event in recent_vision_descriptions[-5:]:
+                                        vision_context_parts.append(f"- [{event['timestamp']}] {event['description']}")
+                                
+                                # Add archived vision facts from longer-term memory
+                                vision_facts = [(k, v) for k, v in memory.facts.items() if k.startswith("vision_")]
+                                archived_vision = sorted(vision_facts, reverse=True)[:10]  # Last 10 archived
+                                if archived_vision:
+                                    vision_context_parts.append("\nArchived vision observations:")
+                                    for k, v in archived_vision:
+                                        vision_context_parts.append(f"- {v}")
+                                
+                                vision_context = "\n".join(vision_context_parts)
                                 enhanced_system = conf.safety_system_prompt
                                 if vision_context:
-                                    enhanced_system += f"\n\nRecent vision observations:\n{vision_context}"
+                                    enhanced_system += f"\n\n{vision_context}"
                                 
                                 full_context = [base_system] + context
                                 
