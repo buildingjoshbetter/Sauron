@@ -21,6 +21,8 @@ class Config:
     motion_sensitivity: float
     camera_snapshot_width: int
     camera_snapshot_height: int
+    enable_video_on_motion: bool
+    video_duration_seconds: int
 
     send_sms_on_questions: bool
     send_sms_on_motion: bool
@@ -65,6 +67,7 @@ def load_config() -> Config:
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "audio").mkdir(exist_ok=True)
     (data_dir / "images").mkdir(exist_ok=True)
+    (data_dir / "video").mkdir(exist_ok=True)
     (data_dir / "logs").mkdir(exist_ok=True)
 
     return Config(
@@ -82,6 +85,8 @@ def load_config() -> Config:
         motion_sensitivity=float(os.getenv("MOTION_SENSITIVITY", "0.15")),
         camera_snapshot_width=int(os.getenv("CAMERA_SNAPSHOT_WIDTH", "640")),
         camera_snapshot_height=int(os.getenv("CAMERA_SNAPSHOT_HEIGHT", "480")),
+        enable_video_on_motion=get_env_bool("ENABLE_VIDEO_ON_MOTION", True),
+        video_duration_seconds=int(os.getenv("VIDEO_DURATION_SECONDS", "10")),
         send_sms_on_questions=get_env_bool("SEND_SMS_ON_QUESTIONS", True),
         send_sms_on_motion=get_env_bool("SEND_SMS_ON_MOTION", True),
         device_name=os.getenv("DEVICE_NAME", "pi-zero-2w"),

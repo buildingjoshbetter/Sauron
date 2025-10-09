@@ -5,6 +5,7 @@ import threading
 import time
 import json
 from pathlib import Path
+from datetime import datetime
 
 from dotenv import load_dotenv
 
@@ -17,6 +18,7 @@ from .sms import send_sms, sanitize_sms
 from .tools import get_local_time, get_weather_summary
 from .memory import MemorySystem
 from .summarization import run_daily_cleanup
+from .computer_vision import process_motion_event
 
 
 def setup_logging(level: str, data_dir: Path) -> None:
@@ -95,9 +97,28 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
 
             sms_to_send: str | None = None
 
-            # Motion: don't send SMS, just log it
-            if motion:
-                logging.info("motion event logged but no SMS sent (score %.2f)", motion.motion_score)
+            # Motion: analyze with computer vision and store in memory
+            if motion and conf.enable_video_on_motion:
+                try:
+                    vision_description = process_motion_event(
+                        openai_key=conf.openai_api_key,
+                        motion_score=motion.motion_score,
+                        image_path=motion.image_path,
+                        video_dir=conf.data_dir / "video",
+                        width=conf.camera_snapshot_width,
+                        height=conf.camera_snapshot_height,
+                        video_duration=conf.video_duration_seconds,
+                    )
+                    
+                    if vision_description:
+                        # Store in memory silently (no SMS)
+                        timestamp = datetime.now().isoformat()
+                        vision_fact_key = f"vision_{datetime.now().strftime('%Y%m%d_%H%M%S')}"
+                        memory.facts[vision_fact_key] = f"[{timestamp}] Vision: {vision_description}"
+                        memory.save()
+                        logging.info("stored vision event in memory: %s", vision_description[:100])
+                except Exception as e:
+                    logging.exception("vision processing failed: %s", e)
 
             if wav_path is not None:
                 # Audio files are kept for 24 hours, then cleaned up by daily worker
@@ -161,7 +182,50 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         try:
                             # quick built-in tools with SAURON attitude
                             lower = text.strip().lower()
-                            if any(k in lower for k in ("what time", "current time", "time now")):
+                            
+                            # Check if it's a vision-specific question
+                            is_vision_question = any(k in lower for k in (
+                                "what am i holding", "what do you see", "what does it look like",
+                                "what am i doing", "what's happening", "who is here", "who's in the room",
+                                "describe what", "show me", "can you see"
+                            ))
+                            
+                            if is_vision_question:
+                                # Send "analyzing..." SMS first
+                                try:
+                                    send_sms(
+                                        account_sid=conf.twilio_account_sid,
+                                        auth_token=conf.twilio_auth_token,
+                                        from_number=conf.twilio_from_number,
+                                        to_number=conf.twilio_to_number,
+                                        body="Gimme a sec while I analyze...",
+                                    )
+                                    logging.info("sent analyzing SMS for vision question")
+                                except Exception as e:
+                                    logging.warning("failed to send analyzing SMS: %s", e)
+                                
+                                # Build context with vision facts
+                                context = memory.build_context_window(max_recent=30, current_query=text)
+                                
+                                # Get recent vision facts
+                                vision_facts = [(k, v) for k, v in memory.facts.items() if k.startswith("vision_")]
+                                recent_vision = sorted(vision_facts, reverse=True)[:5]  # Last 5 vision events
+                                
+                                vision_context = "\n".join([f"- {v}" for k, v in recent_vision])
+                                enhanced_system = conf.safety_system_prompt
+                                if vision_context:
+                                    enhanced_system += f"\n\nRecent vision observations:\n{vision_context}"
+                                
+                                full_context = [base_system] + context
+                                
+                                reply = chat_openrouter(
+                                    conf.openrouter_api_key,
+                                    conf.openrouter_model,
+                                    full_context,
+                                    system_override=enhanced_system,
+                                    personality=conf.personality_prompt,
+                                )
+                            elif any(k in lower for k in ("what time", "current time", "time now")):
                                 reply = f"It's {get_local_time(conf.timezone)}."
                             elif any(k in lower for k in ("weather", "temperature", "forecast")):
                                 reply = f"{get_weather_summary(conf.latitude, conf.longitude)}."
