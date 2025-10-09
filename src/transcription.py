@@ -69,15 +69,47 @@ def transcribe_with_openai(api_key: str, wav_path: Path) -> str:
     return ""  # unreachable, for type completeness
 
 
-def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "tiny") -> str:
+def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> str:
     """
-    Smart transcription: use local Whisper if enabled, fallback to OpenAI API.
+    Transcribe audio using Whisper service running on NAS.
+    Much faster than Pi (NAS has better CPU).
     """
+    try:
+        with open(wav_path, "rb") as f:
+            files = {"file": (wav_path.name, f, "audio/wav")}
+            resp = requests.post(f"{nas_url}/transcribe", files=files, timeout=30)
+        
+        if resp.status_code == 200:
+            data = resp.json()
+            return data.get("text", "").strip()
+        else:
+            logging.warning("NAS whisper failed: %s", resp.text)
+            return ""
+    except Exception as e:
+        logging.error("NAS whisper error: %s", e)
+        return ""
+
+
+def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "tiny", nas_whisper_url: str = "") -> str:
+    """
+    Smart transcription priority:
+    1. NAS Whisper (fastest, if available)
+    2. Local Whisper (fast, if enabled)
+    3. OpenAI API (fallback)
+    """
+    # Try NAS Whisper first (fastest option)
+    if nas_whisper_url:
+        text = transcribe_nas_whisper(wav_path, nas_whisper_url)
+        if text:
+            return text
+        logging.warning("NAS whisper failed, trying next option")
+    
+    # Try local Whisper
     if use_local:
         text = transcribe_local_whisper(wav_path, model_size)
         if text:
             return text
-        # Fallback to API if local fails
         logging.warning("local whisper failed, falling back to OpenAI API")
     
+    # Fallback to OpenAI API
     return transcribe_with_openai(api_key, wav_path)

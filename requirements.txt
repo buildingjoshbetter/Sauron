@@ -6,3 +6,4 @@ requests==2.32.3
 twilio==9.2.3
 python-dotenv==1.0.1
 openai-whisper==20231117
+flask==3.0.0

@@ -11,12 +11,14 @@ Stored in `/home/pi/sauron_data/`:
 - ✅ **~1-6 GB total** (never exceeds this)
 
 ### **NAS (Network Storage) - Unlimited, Permanent**
-Stored in `/mnt/nas/sauron_memory/`:
+Stored in `/mnt/nas/sauron/`:
 - ✅ Conversation history (unlimited, forever)
 - ✅ Facts database (500+ facts, forever)
 - ✅ Conversation summaries (forever)
 - ✅ Daily summaries (transcripts, vision, images)
-- ✅ **Grows ~10-50 MB/year** (text only)
+- ✅ **Raw audio archive** (all audio files, forever, organized by date)
+- ✅ **Raw video/image archive** (all video/images, forever, organized by date)
+- ✅ **Grows ~1-5 GB/day** (full archive) or ~10-50 MB/year (summaries only)
 
 ## Setup Instructions
 
@@ -94,10 +96,10 @@ Test:
 sudo mount -a
 ```
 
-### Step 4: Create memory directories on NAS
+### Step 4: Create directories on NAS
 
 ```bash
-mkdir -p /mnt/nas/sauron_memory/daily_summaries
+mkdir -p /mnt/nas/sauron/{daily_summaries,audio_archive,video_archive}
 ```
 
 ### Step 5: Update SAURON .env
@@ -106,13 +108,13 @@ mkdir -p /mnt/nas/sauron_memory/daily_summaries
 nano /home/pi/Sauron/.env
 ```
 
-Add this line:
+Add these lines:
 ```env
-MEMORY_DIR=/mnt/nas/sauron_memory
-```
+# NAS path for long-term memory and archives
+MEMORY_DIR=/mnt/nas/sauron
+NAS_ARCHIVE_DIR=/mnt/nas/sauron
 
-**Keep DATA_DIR as local:**
-```env
+# Keep local data on SD card for active files
 DATA_DIR=/home/pi/sauron_data
 ```
 
@@ -143,13 +145,17 @@ loaded X facts from memory
 
 ```bash
 # Check memory files are on NAS
-ls -lh /mnt/nas/sauron_memory/
+ls -lh /mnt/nas/sauron/
+
+# Check archive directories
+ls -lh /mnt/nas/sauron/audio_archive/
+ls -lh /mnt/nas/sauron/video_archive/
 
 # Check local files are on SD card
 ls -lh /home/pi/sauron_data/
 
-# Monitor NAS writes
-watch -n 2 'ls -lh /mnt/nas/sauron_memory/'
+# Monitor daily archives (check at 3 AM)
+watch -n 2 'ls -lh /mnt/nas/sauron/audio_archive/'
 ```
 
 ## What Goes Where
@@ -164,6 +170,8 @@ watch -n 2 'ls -lh /mnt/nas/sauron_memory/'
 | **Facts** | **NAS** | Forever | ~100-500 KB |
 | **Summaries** | **NAS** | Forever | ~10-50 MB/year |
 | **Daily summaries** | **NAS** | Forever | ~4-24 MB/year |
+| **Audio archive** | **NAS** | Forever | ~1-5 GB/day |
+| **Video/Image archive** | **NAS** | Forever | ~0.5-1 GB/day |
 
 ## Benefits
 

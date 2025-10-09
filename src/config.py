@@ -29,6 +29,7 @@ class Config:
     device_name: str
     data_dir: Path
     memory_dir: Path  # NAS storage for long-term memory
+    nas_archive_dir: Path  # NAS storage for raw audio/video archives
     log_level: str
 
     # safety/guardrails
@@ -51,6 +52,7 @@ class Config:
     use_local_whisper: bool
     whisper_model_size: str
     enable_streaming_transcription: bool
+    nas_whisper_url: str
 
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -76,6 +78,12 @@ def load_config() -> Config:
     memory_dir = Path(os.getenv("MEMORY_DIR", str(data_dir))).expanduser()
     memory_dir.mkdir(parents=True, exist_ok=True)
     (memory_dir / "daily_summaries").mkdir(exist_ok=True)
+    
+    # NAS archive dir for raw audio/video (defaults to memory_dir if not specified)
+    nas_archive_dir = Path(os.getenv("NAS_ARCHIVE_DIR", str(memory_dir))).expanduser()
+    nas_archive_dir.mkdir(parents=True, exist_ok=True)
+    (nas_archive_dir / "audio_archive").mkdir(exist_ok=True)
+    (nas_archive_dir / "video_archive").mkdir(exist_ok=True)
 
     return Config(
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
@@ -99,6 +107,7 @@ def load_config() -> Config:
         device_name=os.getenv("DEVICE_NAME", "pi-zero-2w"),
         data_dir=data_dir,
         memory_dir=memory_dir,
+        nas_archive_dir=nas_archive_dir,
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         safety_system_prompt=os.getenv(
             "SAFETY_SYSTEM_PROMPT",
@@ -139,4 +148,5 @@ def load_config() -> Config:
         use_local_whisper=get_env_bool("USE_LOCAL_WHISPER", False),
         whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "tiny"),
         enable_streaming_transcription=get_env_bool("ENABLE_STREAMING_TRANSCRIPTION", True),
+        nas_whisper_url=os.getenv("NAS_WHISPER_URL", ""),
     )

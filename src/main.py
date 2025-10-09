@@ -146,7 +146,8 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         conf.openai_api_key, 
                         wav_path, 
                         conf.use_local_whisper, 
-                        conf.whisper_model_size
+                        conf.whisper_model_size,
+                        conf.nas_whisper_url
                     )
                 except Exception as e:
                     logging.exception("transcription failed for %s: %s", wav_path, e)
@@ -337,7 +338,8 @@ def daily_cleanup_worker(conf, memory_system):
                     conf.data_dir,
                     conf.openrouter_api_key,
                     conf.openrouter_model,
-                    memory_system
+                    memory_system,
+                    conf.nas_archive_dir
                 )
                 # Sleep for an hour to avoid re-triggering
                 time_module.sleep(3600)

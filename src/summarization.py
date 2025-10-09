@@ -123,22 +123,42 @@ def summarize_daily_transcripts(
         json.dump(summary_data, f, indent=2)
     
     logging.info("saved transcript summary for %s: %s", date_key, summary_file)
+
+
+def archive_daily_audio(data_dir: Path, nas_archive_dir: Path) -> None:
+    """
+    Move yesterday's audio files to NAS archive (keep forever).
+    """
+    audio_dir = data_dir / "audio"
+    archive_dir = nas_archive_dir / "audio_archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
     
-    # Delete old audio files (older than 24 hours)
-    if audio_dir.exists():
-        cutoff_time = datetime.now() - timedelta(hours=24)
-        deleted_count = 0
-        for audio_file in audio_dir.glob("audio_*.wav"):
-            try:
-                file_mtime = datetime.fromtimestamp(audio_file.stat().st_mtime)
-                if file_mtime < cutoff_time:
-                    audio_file.unlink()
-                    deleted_count += 1
-            except Exception as e:
-                logging.warning("failed to delete %s: %s", audio_file, e)
-        
-        if deleted_count > 0:
-            logging.info("deleted %d audio files older than 24 hours", deleted_count)
+    # Create daily archive subdirectory
+    yesterday = datetime.now() - timedelta(days=1)
+    date_key = yesterday.strftime("%Y-%m-%d")
+    daily_archive = archive_dir / date_key
+    daily_archive.mkdir(exist_ok=True)
+    
+    if not audio_dir.exists():
+        return
+    
+    # Move files from yesterday to NAS
+    cutoff_time = datetime.now() - timedelta(hours=24)
+    archived_count = 0
+    
+    for audio_file in audio_dir.glob("audio_*.wav"):
+        try:
+            file_mtime = datetime.fromtimestamp(audio_file.stat().st_mtime)
+            if file_mtime < cutoff_time:
+                # Move to NAS archive
+                dest = daily_archive / audio_file.name
+                audio_file.rename(dest)
+                archived_count += 1
+        except Exception as e:
+            logging.warning("failed to archive %s: %s", audio_file, e)
+    
+    if archived_count > 0:
+        logging.info("archived %d audio files to NAS: %s", archived_count, daily_archive)
 
 
 def summarize_daily_images(
@@ -217,22 +237,53 @@ def summarize_daily_images(
         json.dump(summary_data, f, indent=2)
     
     logging.info("saved image summary for %s", date_key)
+
+
+def archive_daily_video(data_dir: Path, nas_archive_dir: Path) -> None:
+    """
+    Move yesterday's video analysis data to NAS archive.
+    Note: Videos themselves are already deleted after analysis, this just organizes metadata.
+    """
+    video_dir = data_dir / "video"
+    images_dir = data_dir / "images"
+    archive_dir = nas_archive_dir / "video_archive"
+    archive_dir.mkdir(parents=True, exist_ok=True)
     
-    # Delete old images (older than 24 hours)
+    # Create daily archive subdirectory
+    yesterday = datetime.now() - timedelta(days=1)
+    date_key = yesterday.strftime("%Y-%m-%d")
+    daily_archive = archive_dir / date_key
+    daily_archive.mkdir(exist_ok=True)
+    
+    cutoff_time = datetime.now() - timedelta(hours=24)
+    archived_count = 0
+    
+    # Archive any old images (motion snapshots)
     if images_dir.exists():
-        cutoff_time = datetime.now() - timedelta(hours=24)
-        deleted_count = 0
         for img_file in images_dir.glob("img_*.jpg"):
             try:
                 file_mtime = datetime.fromtimestamp(img_file.stat().st_mtime)
                 if file_mtime < cutoff_time:
-                    img_file.unlink()
-                    deleted_count += 1
+                    dest = daily_archive / img_file.name
+                    img_file.rename(dest)
+                    archived_count += 1
             except Exception as e:
-                logging.warning("failed to delete %s: %s", img_file, e)
-        
-        if deleted_count > 0:
-            logging.info("deleted %d images older than 24 hours", deleted_count)
+                logging.warning("failed to archive image %s: %s", img_file, e)
+    
+    # Archive any video files (shouldn't be any, but just in case)
+    if video_dir.exists():
+        for vid_file in video_dir.glob("motion_*.h264"):
+            try:
+                file_mtime = datetime.fromtimestamp(vid_file.stat().st_mtime)
+                if file_mtime < cutoff_time:
+                    dest = daily_archive / vid_file.name
+                    vid_file.rename(dest)
+                    archived_count += 1
+            except Exception as e:
+                logging.warning("failed to archive video %s: %s", vid_file, e)
+    
+    if archived_count > 0:
+        logging.info("archived %d video/image files to NAS: %s", archived_count, daily_archive)
 
 
 def summarize_daily_vision(
@@ -313,14 +364,14 @@ def summarize_daily_vision(
     logging.info("cleaned up %d individual vision facts (replaced with daily summary)", len(yesterday_vision))
 
 
-def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str, memory_system) -> None:
+def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str, memory_system, nas_archive_dir: Path) -> None:
     """
     Run all daily cleanup tasks:
     - Summarize transcripts
     - Summarize vision events
-    - Delete old raw files
+    - Archive raw files to NAS (keep forever)
     """
-    logging.info("starting daily cleanup and summarization")
+    logging.info("starting daily cleanup and archival")
     
     try:
         summarize_daily_transcripts(data_dir, openrouter_key, openrouter_model, memory_system)
@@ -337,5 +388,17 @@ def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str
     except Exception as e:
         logging.exception("failed to summarize images: %s", e)
     
-    logging.info("daily cleanup completed")
+    # Archive audio to NAS (keep forever)
+    try:
+        archive_daily_audio(data_dir, nas_archive_dir)
+    except Exception as e:
+        logging.exception("failed to archive audio: %s", e)
+    
+    # Archive video/images to NAS (keep forever)
+    try:
+        archive_daily_video(data_dir, nas_archive_dir)
+    except Exception as e:
+        logging.exception("failed to archive video: %s", e)
+    
+    logging.info("daily cleanup and archival completed")
 
