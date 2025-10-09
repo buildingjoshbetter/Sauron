@@ -63,8 +63,8 @@ def motion_producer(conf, q: queue.Queue[MotionResult]) -> None:
 
 
 def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResult]) -> None:
-    # Initialize advanced memory system
-    memory = MemorySystem(conf.data_dir)
+    # Initialize advanced memory system (stored on NAS via memory_dir)
+    memory = MemorySystem(conf.memory_dir)
     
     # Base system message
     base_system = {
@@ -359,7 +359,7 @@ def main() -> None:
 
     # Initialize memory first (needed for cleanup worker)
     from .memory import MemorySystem as MemSys
-    memory_for_cleanup = MemSys(conf.data_dir)
+    memory_for_cleanup = MemSys(conf.memory_dir)
 
     threads: list[threading.Thread] = []
     

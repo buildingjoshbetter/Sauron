@@ -28,6 +28,7 @@ class Config:
     send_sms_on_motion: bool
     device_name: str
     data_dir: Path
+    memory_dir: Path  # NAS storage for long-term memory
     log_level: str
 
     # safety/guardrails
@@ -63,12 +64,18 @@ def get_env_bool(name: str, default: bool) -> bool:
 
 
 def load_config() -> Config:
+    # Local data dir (SD card) for active/temporary files
     data_dir = Path(os.getenv("DATA_DIR", "/home/pi/sauron_data")).expanduser()
     data_dir.mkdir(parents=True, exist_ok=True)
     (data_dir / "audio").mkdir(exist_ok=True)
     (data_dir / "images").mkdir(exist_ok=True)
     (data_dir / "video").mkdir(exist_ok=True)
     (data_dir / "logs").mkdir(exist_ok=True)
+    
+    # Memory dir (NAS) for long-term contextual memory
+    memory_dir = Path(os.getenv("MEMORY_DIR", str(data_dir))).expanduser()
+    memory_dir.mkdir(parents=True, exist_ok=True)
+    (memory_dir / "daily_summaries").mkdir(exist_ok=True)
 
     return Config(
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
@@ -91,6 +98,7 @@ def load_config() -> Config:
         send_sms_on_motion=get_env_bool("SEND_SMS_ON_MOTION", True),
         device_name=os.getenv("DEVICE_NAME", "pi-zero-2w"),
         data_dir=data_dir,
+        memory_dir=memory_dir,
         log_level=os.getenv("LOG_LEVEL", "INFO"),
         safety_system_prompt=os.getenv(
             "SAFETY_SYSTEM_PROMPT",

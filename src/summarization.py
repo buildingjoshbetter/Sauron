@@ -59,7 +59,8 @@ def summarize_daily_transcripts(
     Summarize all transcripts from yesterday and store summary.
     Delete old audio files after summarization.
     """
-    summaries_dir = data_dir / "daily_summaries"
+    # Summaries stored on NAS via memory_system.memory_dir
+    summaries_dir = memory_system.memory_dir / "daily_summaries"
     summaries_dir.mkdir(exist_ok=True)
     
     audio_dir = data_dir / "audio"
@@ -143,13 +144,15 @@ def summarize_daily_transcripts(
 def summarize_daily_images(
     data_dir: Path,
     openrouter_key: str,
-    openrouter_model: str
+    openrouter_model: str,
+    memory_system
 ) -> None:
     """
     Summarize image descriptions from yesterday.
     Delete old images after summarization.
     """
-    summaries_dir = data_dir / "daily_summaries"
+    # Summaries stored on NAS via memory_system.memory_dir
+    summaries_dir = memory_system.memory_dir / "daily_summaries"
     summaries_dir.mkdir(exist_ok=True)
     
     images_dir = data_dir / "images"
@@ -242,7 +245,8 @@ def summarize_daily_vision(
     Summarize all vision descriptions from yesterday.
     Consolidates individual descriptions into daily summary.
     """
-    summaries_dir = data_dir / "daily_summaries"
+    # Summaries stored on NAS via memory_system.memory_dir
+    summaries_dir = memory_system.memory_dir / "daily_summaries"
     summaries_dir.mkdir(exist_ok=True)
     
     # Get yesterday's date
@@ -329,7 +333,7 @@ def run_daily_cleanup(data_dir: Path, openrouter_key: str, openrouter_model: str
         logging.exception("failed to summarize vision: %s", e)
     
     try:
-        summarize_daily_images(data_dir, openrouter_key, openrouter_model)
+        summarize_daily_images(data_dir, openrouter_key, openrouter_model, memory_system)
     except Exception as e:
         logging.exception("failed to summarize images: %s", e)
     

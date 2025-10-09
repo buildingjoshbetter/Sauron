@@ -18,11 +18,11 @@ class MemorySystem:
     - Smart context window: recent + relevant facts
     """
     
-    def __init__(self, data_dir: Path):
-        self.data_dir = data_dir
-        self.conv_file = data_dir / "conversation.json"
-        self.facts_file = data_dir / "facts.json"
-        self.summaries_file = data_dir / "summaries.json"
+    def __init__(self, memory_dir: Path):
+        self.memory_dir = memory_dir
+        self.conv_file = memory_dir / "conversation.json"
+        self.facts_file = memory_dir / "facts.json"
+        self.summaries_file = memory_dir / "summaries.json"
         
         self.conversation: List[Dict[str, str]] = []
         self.facts: Dict[str, str] = {}  # key: fact, value: context
