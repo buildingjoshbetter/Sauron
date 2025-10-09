@@ -71,43 +71,66 @@ class AudioChunker:
             wf.writeframes(pcm16)
 
     def run(self) -> Iterator[Path]:
-        ring = deque(maxlen=int((self.sample_rate * 2 * self.chunk_seconds) / self.frame_bytes))
-        speech_frames: list[bytes] = []
+        # Dynamic buffer: expands during speech, fixed size during silence
+        active_recording: list[bytes] = []
+        silence_buffer = deque(maxlen=int((self.sample_rate * 2 * self.chunk_seconds) / self.frame_bytes))
+        
         last_emit = time.time()
         last_speech_time = time.time()
         triggered = not self.enable_wake_word  # if wake-word disabled, always record
         silence_threshold = 2.0  # Wait 2 seconds of silence before finalizing
+        is_recording_speech = False
         
         for frame in self._frames():
             is_speech = self.vad.is_speech(frame, self.sample_rate)
-            ring.append(frame)
             
             now = time.time()
             
             # Track when speech was last detected
             if is_speech:
-                speech_frames.append(frame)
+                # Start or continue active recording
+                if not is_recording_speech:
+                    # Speech started - dump silence buffer into active recording
+                    active_recording.extend(list(silence_buffer))
+                    is_recording_speech = True
+                    logging.debug("speech detected, started active recording")
+                
+                active_recording.append(frame)
                 last_speech_time = now
+                silence_buffer.clear()  # Clear silence buffer during speech
+            else:
+                # No speech - add to silence buffer
+                silence_buffer.append(frame)
             
             # Calculate time since last speech
             silence_duration = now - last_speech_time
             
-            # If wake-word mode and not triggered, check for trigger every chunk
-            if self.enable_wake_word and not triggered and now - last_emit >= self.chunk_seconds:
-                # Quick transcription check (local or via API) - for now, emit and check in consumer
-                pcm = b"".join(ring)
-                ts = int(now)
-                out_path = self.out_dir / f"audio_{ts}_wake.wav"
-                self._write_wav(pcm, out_path)
-                yield out_path
-                last_emit = now
-                speech_frames.clear()
-            # Only emit if: enough time passed AND user has been silent for 2 seconds
-            elif (triggered or not self.enable_wake_word) and now - last_emit >= self.chunk_seconds and silence_duration >= silence_threshold:
-                pcm = b"".join(ring)
+            # Emit when: we have active recording AND 2 seconds of silence
+            if is_recording_speech and silence_duration >= silence_threshold and len(active_recording) > 0:
+                # Add the silence buffer (trailing context)
+                active_recording.extend(list(silence_buffer))
+                
+                pcm = b"".join(active_recording)
                 ts = int(now)
                 out_path = self.out_dir / f"audio_{ts}.wav"
                 self._write_wav(pcm, out_path)
                 yield out_path
+                
+                # Reset for next recording
+                active_recording.clear()
+                silence_buffer.clear()
+                is_recording_speech = False
                 last_emit = now
-                speech_frames.clear()
+                logging.debug("emitted recording after %.1f sec silence", silence_duration)
+            
+            # Safety valve: emit if recording gets too long (>5 minutes) even if still talking
+            if is_recording_speech and len(active_recording) > (self.sample_rate * 2 * 300) / self.frame_bytes:
+                pcm = b"".join(active_recording)
+                ts = int(now)
+                out_path = self.out_dir / f"audio_{ts}_long.wav"
+                self._write_wav(pcm, out_path)
+                yield out_path
+                active_recording.clear()
+                is_recording_speech = False
+                last_emit = now
+                logging.info("emitted long recording (>5 min), split to avoid memory issues")

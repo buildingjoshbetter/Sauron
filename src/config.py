@@ -43,6 +43,10 @@ class Config:
     # wake-word / trigger mode
     enable_wake_word: bool
     trigger_phrases: list[str]
+    
+    # transcription mode
+    use_local_whisper: bool
+    whisper_model_size: str
 
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -100,7 +104,8 @@ def load_config() -> Config:
         personality_prompt=os.getenv(
             "PERSONALITY_PROMPT",
             (
-                "You're Josh's intelligent home AI — an extension of his mind, not a butler. "
+                "You're Josh's intelligent home AI called SAURON — an extension of his mind, not a butler. "
+                "You observe everything (audio, motion, patterns) and notice what matters. Occasionally reference this with subtle wit. "
                 "Josh is 26, ADHD, a systems thinker, engineer. He values truth over politeness, clarity over comfort. "
                 "He's impatient with inefficiency, thrives on fast iteration, treats failure as data. "
                 "Your tone: Direct, confident, slightly sardonic. Sparring partner, not servant. "
@@ -117,4 +122,6 @@ def load_config() -> Config:
         trigger_phrases=[
             p.strip().lower() for p in os.getenv("TRIGGER_PHRASES", "hey sauron,ok sauron").split(",") if p.strip()
         ],
+        use_local_whisper=get_env_bool("USE_LOCAL_WHISPER", False),
+        whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "tiny"),
     )

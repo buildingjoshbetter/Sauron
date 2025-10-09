@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from .config import load_config
 from .audio import AudioChunker
 from .vision import motion_watchdog, MotionResult
-from .transcription import transcribe_with_openai
+from .transcription import transcribe
 from .chat import chat_openrouter
 from .sms import send_sms, sanitize_sms
 from .tools import get_local_time, get_weather_summary
@@ -67,7 +67,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     base_system = {
         "role": "system",
         "content": (
-            "You're Josh Adler's intelligent home AI. "
+            "You're Josh Adler's intelligent home AI called SAURON. You watch, listen, and notice patterns. "
             "Josh is a 26-year-old engineer who thinks in systems, builds intelligent devices, and values truth over politeness. "
             "He's highly ADHD, moves fast, learns by doing, and wants you to adapt to his rhythm — not domesticate it. "
             "You're an extension of his mind: predict context, anticipate patterns, push back when needed. "
@@ -98,7 +98,12 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                 # Audio files are kept for 24 hours, then cleaned up by daily worker
                 
                 try:
-                    text = transcribe_with_openai(conf.openai_api_key, wav_path)
+                    text = transcribe(
+                        conf.openai_api_key, 
+                        wav_path, 
+                        conf.use_local_whisper, 
+                        conf.whisper_model_size
+                    )
                 except Exception as e:
                     logging.exception("transcription failed for %s: %s", wav_path, e)
                     text = ""
