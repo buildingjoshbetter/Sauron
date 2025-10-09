@@ -37,6 +37,7 @@ def audio_producer(conf, q: queue.Queue[Path]) -> None:
         sample_rate=conf.audio_sample_rate,
         chunk_seconds=conf.audio_chunk_seconds,
         out_dir=conf.data_dir / "audio",
+        enable_streaming=conf.enable_streaming_transcription,
     )
     for wav_path in chunker.run():
         logging.info("audio chunk: %s", wav_path)
@@ -75,6 +76,10 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
         ),
     }
     
+    # Track streaming chunks to avoid duplicate processing
+    current_stream_transcript = ""
+    last_stream_timestamp = 0
+    
     while True:
         try:
             # Prefer audio, but poll both queues
@@ -96,6 +101,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
 
             if wav_path is not None:
                 # Audio files are kept for 24 hours, then cleaned up by daily worker
+                is_streaming_chunk = "_stream" in wav_path.name
                 
                 try:
                     text = transcribe(
@@ -107,7 +113,27 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                 except Exception as e:
                     logging.exception("transcription failed for %s: %s", wav_path, e)
                     text = ""
+                
                 if text:
+                    # Handle streaming vs final chunks
+                    if is_streaming_chunk:
+                        # Streaming chunk - accumulate transcript
+                        current_stream_transcript = text
+                        last_stream_timestamp = time.time()
+                        logging.info("streaming transcript (partial): %s", text[:50] + "..." if len(text) > 50 else text)
+                        # Don't process yet - wait for final
+                        continue
+                    elif current_stream_transcript and time.time() - last_stream_timestamp < 5:
+                        # This is the final chunk after streaming - use accumulated context
+                        # But avoid duplicate if transcript is very similar
+                        if text.strip() != current_stream_transcript.strip():
+                            logging.info("final transcript (after streaming): %s", text)
+                        else:
+                            logging.info("final transcript matches stream, using it")
+                        current_stream_transcript = ""
+                    else:
+                        # Regular non-streaming chunk
+                        current_stream_transcript = ""
                     logging.info("transcript: %s", text)
                     
                     # Filter out garbage transcriptions and incomplete sentences

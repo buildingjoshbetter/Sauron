@@ -47,6 +47,7 @@ class Config:
     # transcription mode
     use_local_whisper: bool
     whisper_model_size: str
+    enable_streaming_transcription: bool
 
 
 TRUE_VALUES = {"1", "true", "yes", "on"}
@@ -124,4 +125,5 @@ def load_config() -> Config:
         ],
         use_local_whisper=get_env_bool("USE_LOCAL_WHISPER", False),
         whisper_model_size=os.getenv("WHISPER_MODEL_SIZE", "tiny"),
+        enable_streaming_transcription=get_env_bool("ENABLE_STREAMING_TRANSCRIPTION", True),
     )

@@ -19,6 +19,7 @@ class AudioChunker:
         out_dir: Path,
         enable_wake_word: bool = False,
         trigger_phrases: list[str] | None = None,
+        enable_streaming: bool = True,
     ) -> None:
         self.device = device
         self.sample_rate = sample_rate
@@ -29,6 +30,8 @@ class AudioChunker:
         self.frame_bytes = int(sample_rate * (self.frame_ms / 1000.0) * 2)  # 16-bit mono
         self.enable_wake_word = enable_wake_word
         self.trigger_phrases = trigger_phrases or []
+        self.enable_streaming = enable_streaming
+        self.streaming_chunk_seconds = 3  # Emit intermediate chunks every 3 seconds during speech
 
     def _arecord_cmd(self) -> list[str]:
         cmd = [
@@ -77,8 +80,9 @@ class AudioChunker:
         
         last_emit = time.time()
         last_speech_time = time.time()
+        last_stream_emit = time.time()
         triggered = not self.enable_wake_word  # if wake-word disabled, always record
-        silence_threshold = 2.0  # Wait 2 seconds of silence before finalizing
+        silence_threshold = 1.0  # Wait 1 second of silence before finalizing (reduced for speed)
         is_recording_speech = False
         
         for frame in self._frames():
@@ -93,11 +97,23 @@ class AudioChunker:
                     # Speech started - dump silence buffer into active recording
                     active_recording.extend(list(silence_buffer))
                     is_recording_speech = True
+                    last_stream_emit = now
                     logging.debug("speech detected, started active recording")
                 
                 active_recording.append(frame)
                 last_speech_time = now
                 silence_buffer.clear()  # Clear silence buffer during speech
+                
+                # Streaming mode: emit intermediate chunks every 3 seconds while speaking
+                if self.enable_streaming and now - last_stream_emit >= self.streaming_chunk_seconds:
+                    pcm = b"".join(active_recording)
+                    ts = int(now)
+                    out_path = self.out_dir / f"audio_{ts}_stream.wav"
+                    self._write_wav(pcm, out_path)
+                    yield out_path
+                    last_stream_emit = now
+                    logging.debug("emitted streaming chunk (still speaking)")
+                    # Keep recording - don't clear active_recording
             else:
                 # No speech - add to silence buffer
                 silence_buffer.append(frame)
@@ -105,7 +121,7 @@ class AudioChunker:
             # Calculate time since last speech
             silence_duration = now - last_speech_time
             
-            # Emit when: we have active recording AND 2 seconds of silence
+            # Emit when: we have active recording AND 1 second of silence
             if is_recording_speech and silence_duration >= silence_threshold and len(active_recording) > 0:
                 # Add the silence buffer (trailing context)
                 active_recording.extend(list(silence_buffer))
@@ -121,7 +137,7 @@ class AudioChunker:
                 silence_buffer.clear()
                 is_recording_speech = False
                 last_emit = now
-                logging.debug("emitted recording after %.1f sec silence", silence_duration)
+                logging.debug("emitted final recording after %.1f sec silence", silence_duration)
             
             # Safety valve: emit if recording gets too long (>5 minutes) even if still talking
             if is_recording_speech and len(active_recording) > (self.sample_rate * 2 * 300) / self.frame_bytes:
