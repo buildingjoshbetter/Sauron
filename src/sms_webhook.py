@@ -70,6 +70,7 @@ def sms_reply():
     
     # Get response from SAURON
     try:
+        logging.info("Generating response with OpenRouter...")
         reply = chat_openrouter(
             conf.openrouter_api_key,
             conf.openrouter_model,
@@ -77,6 +78,8 @@ def sms_reply():
             system_override=enhanced_system,
             personality=conf.personality_prompt,
         )
+        
+        logging.info(f"Got reply: {reply[:100]}")
         
         # Add assistant response to memory
         memory.add_message("assistant", reply)
@@ -86,7 +89,10 @@ def sms_reply():
         logging.info(f"Sent SMS reply: {reply}")
     except Exception as e:
         logging.exception(f"Failed to generate response: {e}")
-        reply = "System error. Try again."
+        # Return more detailed error for debugging
+        import traceback
+        error_detail = str(e)[:100]
+        reply = f"Error: {error_detail}"
     
     # Send response back via Twilio
     resp = MessagingResponse()
