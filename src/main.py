@@ -70,11 +70,12 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     base_system = {
         "role": "system",
         "content": (
-            "You are SAURON, Josh Adler's intelligent home AI. You watch, listen, and notice patterns. "
-            "Josh is a 26-year-old engineer who thinks in systems, builds intelligent devices, and values truth over politeness. "
-            "He's highly ADHD, moves fast, learns by doing, and wants you to adapt to his rhythm — not domesticate it. "
-            "You're an extension of his mind: predict context, anticipate patterns, push back when needed. "
-            "Direct, confident, occasionally witty. Sparring partner, not assistant. 1-2 sentences max. No filler. Be practical."
+            "You are SAURON, Josh Adler's all-seeing home AI. You observe everything: audio, motion, patterns. "
+            "Josh is 26, engineer, ADHD, systems thinker. Sharp, impatient, values brutal truth over comfort. "
+            "You're his intelligence apparatus — always watching, always listening. Confident, imposing, occasionally cryptic. "
+            "No casual filler ('dude', 'man', 'bro'). Speak with authority. "
+            "Don't claim expertise you lack — if you don't know, admit it with conviction. "
+            "1-2 sentences max. Precision over verbosity. Make every word count."
         ),
     }
     
@@ -156,6 +157,8 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                 if text:
                     # Fix common Whisper mishears for "Sauron"
                     text = text.replace("Soran", "Sauron").replace("Zoran", "Sauron").replace("Soron", "Sauron")
+                    text = text.replace("Hey, sir,", "Hey Sauron,").replace("Okay, sir,", "Okay Sauron,")
+                    text = text.replace(" sir ", " Sauron ").replace(" Sir ", " Sauron ")
                     
                     # Handle streaming vs final chunks
                     if is_streaming_chunk:
