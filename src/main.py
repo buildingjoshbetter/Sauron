@@ -288,37 +288,20 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                 # Add system message + context
                                 full_context = [base_system] + context
                                 
-                                # Use streaming SMS for instant feel (like texting a friend)
-                                if conf.enable_streaming_sms:
-                                    reply = send_streaming_sms(
-                                        openrouter_key=conf.openrouter_api_key,
-                                        model=conf.openrouter_model,
-                                        messages=full_context,
-                                        system_override=enhanced_system,
-                                        personality=conf.personality_prompt,
-                                        twilio_account_sid=conf.twilio_account_sid,
-                                        twilio_auth_token=conf.twilio_auth_token,
-                                        twilio_from_number=conf.twilio_from_number,
-                                        twilio_to_number=conf.twilio_to_number,
-                                        chunk_size=50,  # Send every 50 chars or...
-                                        max_wait_time=1.5,  # ...every 1.5 seconds
-                                    )
-                                    sms_to_send = None  # Already sent via streaming
-                                else:
-                                    # Fallback to non-streaming (traditional)
-                                    reply = chat_openrouter(
-                                        conf.openrouter_api_key,
-                                        conf.openrouter_model,
-                                        full_context,
-                                        system_override=enhanced_system,
-                                        personality=conf.personality_prompt,
-                                    )
-                                    sms_to_send = sanitize_sms(
-                                        body=reply,
-                                        max_chars=conf.sms_max_chars,
-                                        allow_urls=conf.allow_urls_in_sms,
-                                        blocklist_patterns=conf.blocklist_patterns,
-                                    )
+                                # Get response from Claude (non-streaming for cleaner SMS)
+                                reply = chat_openrouter(
+                                    conf.openrouter_api_key,
+                                    conf.openrouter_model,
+                                    full_context,
+                                    system_override=enhanced_system,
+                                    personality=conf.personality_prompt,
+                                )
+                                sms_to_send = sanitize_sms(
+                                    body=reply,
+                                    max_chars=conf.sms_max_chars,
+                                    allow_urls=conf.allow_urls_in_sms,
+                                    blocklist_patterns=conf.blocklist_patterns,
+                                )
                             
                             # Add assistant response to memory
                             memory.add_message("assistant", reply)
