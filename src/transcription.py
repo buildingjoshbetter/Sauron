@@ -69,10 +69,11 @@ def transcribe_with_openai(api_key: str, wav_path: Path) -> str:
     return ""  # unreachable, for type completeness
 
 
-def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> str:
+def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> tuple[str, bool]:
     """
     Transcribe audio using Whisper service running on NAS.
     Much faster than Pi (NAS has better CPU).
+    Returns (text, success) tuple.
     """
     try:
         with open(wav_path, "rb") as f:
@@ -81,13 +82,14 @@ def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> str:
         
         if resp.status_code == 200:
             data = resp.json()
-            return data.get("text", "").strip()
+            text = data.get("text", "").strip()
+            return (text, True)  # Success, even if empty
         else:
             logging.warning("NAS whisper failed: %s", resp.text)
-            return ""
+            return ("", False)
     except Exception as e:
         logging.error("NAS whisper error: %s", e)
-        return ""
+        return ("", False)
 
 
 def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "tiny", nas_whisper_url: str = "") -> str:
@@ -99,9 +101,9 @@ def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = 
     """
     # Try NAS Whisper first (fastest option)
     if nas_whisper_url:
-        text = transcribe_nas_whisper(wav_path, nas_whisper_url)
-        if text:
-            return text
+        text, success = transcribe_nas_whisper(wav_path, nas_whisper_url)
+        if success:
+            return text  # Return even if empty (valid transcription)
         logging.warning("NAS whisper failed, trying next option")
     
     # Try local Whisper
