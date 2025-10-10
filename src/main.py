@@ -181,17 +181,11 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         # Regular non-streaming chunk
                         current_stream_transcript = ""
                     
-                    # Fix common Whisper mishears for "Sauron" BEFORE checking is_addressed
-                    text = text.replace("Soran", "Sauron").replace("Zoran", "Sauron").replace("Soron", "Sauron")
-                    text = text.replace("Sora", "Sauron").replace("Doron", "Sauron").replace("Doran", "Sauron")
-                    text = text.replace("Hey, sir,", "Hey Sauron,").replace("Okay, sir,", "Okay Sauron,")
-                    text = text.replace(" sir ", " Sauron ").replace(" Sir ", " Sauron ")
-                    
                     logging.info("transcript: %s", text)
                     
                     # Filter out garbage transcriptions and incomplete sentences
                     words = text.strip().split()
-                    lower = text.strip().lower()  # Create 'lower' AFTER replacements
+                    lower = text.strip().lower()
                     
                     # Skip if too short or looks like mishear/repetition
                     if len(words) < 3:
@@ -201,8 +195,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         logging.info("transcript looks like mishear (repeated words), skipping SMS")
                         continue
                     
-                    # Check if SAURON is being directly addressed (must contain "sauron")
-                    is_addressed = "sauron" in lower
+                    # Check if SAURON is being directly addressed (multiple trigger words)
+                    trigger_words = ["atlas", "tower", "nexus", "sentinel"]
+                    is_addressed = any(trigger in lower for trigger in trigger_words)
                     
                     # Check if it's a question
                     is_question = (
