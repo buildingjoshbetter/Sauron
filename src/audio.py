@@ -2,6 +2,7 @@ import os
 import subprocess
 import time
 import wave
+import logging
 from collections import deque
 from pathlib import Path
 from typing import Iterator
