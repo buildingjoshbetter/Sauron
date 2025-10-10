@@ -34,7 +34,7 @@ def capture_video(width: int, height: int, duration: int, out_path: Path) -> boo
         return False
 
 
-def extract_frames(video_path: Path, num_frames: int = 3) -> list[Path]:
+def extract_frames(video_path: Path, num_frames: int = 6) -> list[Path]:
     """
     Extract N evenly-spaced frames from video using ffmpeg.
     Returns list of frame paths.
@@ -87,10 +87,10 @@ def extract_frames(video_path: Path, num_frames: int = 3) -> list[Path]:
         return frames
 
 
-def analyze_with_gpt4o_vision(api_key: str, image_paths: list[Path], prompt: str = "") -> str:
+def analyze_with_gpt4o_vision(api_key: str, image_paths: list[Path], prompt: str = "", audio_context: str = "") -> str:
     """
-    Analyze images using GPT-4o Vision API.
-    Returns natural language description.
+    Analyze images using GPT-4o Vision API with SAURON's observational style.
+    Returns natural language description with contextual insights.
     """
     if not image_paths:
         return "No images to analyze"
@@ -98,7 +98,7 @@ def analyze_with_gpt4o_vision(api_key: str, image_paths: list[Path], prompt: str
     try:
         # Encode images as base64
         image_contents = []
-        for img_path in image_paths[:4]:  # Max 4 images to avoid token limits
+        for img_path in image_paths[:6]:  # Increased from 4 to 6 frames for better context
             try:
                 with open(img_path, "rb") as f:
                     b64_img = base64.b64encode(f.read()).decode('utf-8')
@@ -106,7 +106,7 @@ def analyze_with_gpt4o_vision(api_key: str, image_paths: list[Path], prompt: str
                         "type": "image_url",
                         "image_url": {
                             "url": f"data:image/jpeg;base64,{b64_img}",
-                            "detail": "low"  # Faster, cheaper
+                            "detail": "high"  # Changed from "low" to "high" for better accuracy
                         }
                     })
             except Exception as e:
@@ -115,13 +115,22 @@ def analyze_with_gpt4o_vision(api_key: str, image_paths: list[Path], prompt: str
         if not image_contents:
             return "Failed to load images"
         
-        # Default prompt for passive observation
+        # SAURON-style observational prompt
         if not prompt:
-            prompt = (
-                "Describe what's happening in these frames. "
-                "Be concise and factual. Focus on: who/what is in frame, actions, notable objects. "
-                "2-3 sentences max."
+            base_prompt = (
+                "You are SAURON, an all-seeing AI observer. Analyze these frames with precision and insight. "
+                "Focus on: WHO is present (identity, body language, emotional state), "
+                "WHAT they're doing (actions, interactions, objects in use), "
+                "WHY it matters (context, patterns, notable details). "
+                "Be direct, specific, and occasionally insightful. No generic descriptions. "
+                "2-3 sentences. Sharp observations only."
             )
+            
+            # Integrate audio context if available
+            if audio_context:
+                prompt = f"{base_prompt}\n\nRecent audio context: {audio_context}"
+            else:
+                prompt = base_prompt
         
         # Build message with images
         content = [{"type": "text", "text": prompt}] + image_contents
@@ -163,6 +172,7 @@ def process_motion_event(
     width: int = 640,
     height: int = 480,
     video_duration: int = 10,
+    audio_context: str = "",
 ) -> Optional[str]:
     """
     When motion detected:
@@ -190,8 +200,8 @@ def process_motion_event(
         video_path.unlink(missing_ok=True)
         return None
     
-    # Analyze with GPT-4o Vision
-    description = analyze_with_gpt4o_vision(openai_key, frames)
+    # Analyze with GPT-4o Vision (with audio context)
+    description = analyze_with_gpt4o_vision(openai_key, frames, audio_context=audio_context)
     
     # Cleanup
     video_path.unlink(missing_ok=True)

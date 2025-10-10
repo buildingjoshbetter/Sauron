@@ -37,6 +37,7 @@ class Config:
     sms_max_chars: int
     blocklist_patterns: list[str]
     allow_urls_in_sms: bool
+    enable_streaming_sms: bool  # Send SMS in real-time chunks (like texting a friend)
 
     # personality and simple tools
     personality_prompt: str
@@ -125,6 +126,7 @@ def load_config() -> Config:
             p.strip() for p in os.getenv("BLOCKLIST_PATTERNS", "").split(",") if p.strip()
         ],
         allow_urls_in_sms=get_env_bool("ALLOW_URLS_IN_SMS", False),
+        enable_streaming_sms=get_env_bool("ENABLE_STREAMING_SMS", True),  # Default ON for instant feel
             personality_prompt=os.getenv(
                 "PERSONALITY_PROMPT",
                 (
