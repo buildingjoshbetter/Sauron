@@ -52,6 +52,11 @@ def stream_llm_response(
     
     try:
         resp = requests.post(url, headers=headers, json=payload, timeout=60, stream=True)
+        
+        # Log detailed error if request fails
+        if resp.status_code != 200:
+            logging.error(f"OpenRouter error {resp.status_code}: {resp.text}")
+        
         resp.raise_for_status()
         
         # Stream response chunks
