@@ -94,24 +94,18 @@ def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> tuple[str, bool]:
 
 def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "tiny", nas_whisper_url: str = "") -> str:
     """
-    Smart transcription priority:
-    1. NAS Whisper (fastest, if available)
-    2. Local Whisper (fast, if enabled)
-    3. OpenAI API (fallback)
+    Transcription using NAS Whisper (always).
+    Fast, reliable, no API costs.
     """
-    # Try NAS Whisper first (fastest option)
+    # Use NAS Whisper (no fallback needed)
     if nas_whisper_url:
         text, success = transcribe_nas_whisper(wav_path, nas_whisper_url)
         if success:
             return text  # Return even if empty (valid transcription)
-        logging.warning("NAS whisper failed, trying next option")
+        else:
+            logging.error("NAS whisper failed - check NAS connection!")
+            return ""
     
-    # Try local Whisper
-    if use_local:
-        text = transcribe_local_whisper(wav_path, model_size)
-        if text:
-            return text
-        logging.warning("local whisper failed, falling back to OpenAI API")
-    
-    # Fallback to OpenAI API
-    return transcribe_with_openai(api_key, wav_path)
+    # No NAS URL configured - error
+    logging.error("NAS_WHISPER_URL not configured in .env!")
+    return ""
