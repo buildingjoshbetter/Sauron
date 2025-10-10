@@ -50,13 +50,21 @@ def extract_frames(video_path: Path, num_frames: int = 3) -> list[Path]:
             str(video_path)
         ]
         result = subprocess.run(cmd, capture_output=True, text=True, timeout=5)
-        duration = float(result.stdout.strip())
+        duration_str = result.stdout.strip()
         
-        # Extract frames at evenly spaced intervals
-        interval = duration / (num_frames + 1)
+        # Handle 'N/A' or empty response
+        if not duration_str or duration_str == 'N/A':
+            logging.warning("ffprobe returned invalid duration, using fixed interval extraction")
+            # Fallback: extract frames at fixed intervals (0s, 5s, 9s for 10s video)
+            timestamps = [0, 5, 9]
+        else:
+            duration = float(duration_str)
+            # Extract frames at evenly spaced intervals
+            interval = duration / (num_frames + 1)
+            timestamps = [interval * i for i in range(1, num_frames + 1)]
         
-        for i in range(1, num_frames + 1):
-            timestamp = interval * i
+        # Extract frames at calculated timestamps
+        for i, timestamp in enumerate(timestamps, 1):
             frame_path = video_path.parent / f"{video_path.stem}_frame{i}.jpg"
             
             cmd = [
