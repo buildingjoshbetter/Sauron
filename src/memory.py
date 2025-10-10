@@ -75,9 +75,13 @@ class MemorySystem:
     
     def add_message(self, role: str, content: str):
         """Add a message to conversation history."""
+        # Skip empty messages (Claude/Anthropic requires non-empty content)
+        if not content or not content.strip():
+            return
+        
         self.conversation.append({
             "role": role,
-            "content": content,
+            "content": content.strip(),
             "timestamp": datetime.now().isoformat()
         })
     
@@ -138,6 +142,9 @@ class MemorySystem:
         # Add recent conversation (always)
         recent_msgs = self.conversation[-max_recent:] if len(self.conversation) > max_recent else self.conversation
         recent_timestamps = {msg.get("timestamp", "") for msg in recent_msgs}
+        
+        # Filter out empty messages (Claude/Anthropic requires non-empty content)
+        recent_msgs = [msg for msg in recent_msgs if msg.get("content", "").strip()]
         
         # If there's a current query, search for relevant past messages
         if current_query and len(self.conversation) > max_recent:
