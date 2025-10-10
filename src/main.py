@@ -193,16 +193,25 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         logging.info("transcript looks like mishear (repeated words), skipping SMS")
                         continue
                     
-                    # Only process clear questions
-                    # Handle name variations (sauron, soran, zoran due to transcription errors)
-                    is_question = (
-                        "?" in text or 
-                        lower.startswith(("hey sauron", "ok sauron", "sauron", "hey soran", "ok soran", "soran", "hey zoran", "zoran", "what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you"))
+                    # Check if SAURON is being directly addressed (must contain "sauron" or variations)
+                    is_addressed = (
+                        "sauron" in lower or 
+                        "soran" in lower or 
+                        "zoran" in lower
                     )
                     
-                    if is_question and conf.send_sms_on_questions:
-                        # Add user message to memory
-                        memory.add_message("user", text)
+                    # Check if it's a question
+                    is_question = (
+                        "?" in text or 
+                        any(lower.startswith(q) for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you"])
+                    )
+                    
+                    # ALWAYS log to memory (for context/recall later)
+                    memory.add_message("user", text)
+                    
+                    # Only send SMS if directly addressed AND it's a question
+                    if is_addressed and is_question and conf.send_sms_on_questions:
+                        logging.info("directly addressed with question, processing SMS response")
                         
                         try:
                             # quick built-in tools with SAURON attitude
@@ -306,9 +315,12 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         except Exception as e:
                             logging.exception("openrouter failed: %s", e)
                     else:
-                        logging.info("not a clear question, skipping SMS")
-                        # Still add to memory for context
-                        memory.add_message("user", text)
+                        # Not directly addressed or not a question - just log for context
+                        if not is_addressed:
+                            logging.info("overheard conversation (not addressed), logged to memory: %s", text[:50])
+                        else:
+                            logging.info("addressed but not a question, logged to memory: %s", text[:50])
+                        
                         # Save memory periodically (every 10 messages)
                         if len(memory.conversation) % 10 == 0:
                             memory.save()
