@@ -9,7 +9,7 @@ def chat_openrouter(api_key: str, model: str, messages: List[Dict[str, str]], sy
         "Content-Type": "application/json",
         # Optional but recommended
         "HTTP-Referer": "https://local.pi/",
-        "X-Title": "Sauron Pi",
+        "X-Title": "Home AI Assistant",
     }
     # Optionally inject or override system message for safety
     msgs: List[Dict[str, str]] = []
