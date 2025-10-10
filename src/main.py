@@ -154,6 +154,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                     text = ""
                 
                 if text:
+                    # Fix common Whisper mishears for "Sauron"
+                    text = text.replace("Soran", "Sauron").replace("Zoran", "Sauron").replace("Soron", "Sauron")
+                    
                     # Handle streaming vs final chunks
                     if is_streaming_chunk:
                         # Streaming chunk - accumulate transcript
