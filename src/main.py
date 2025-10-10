@@ -188,9 +188,10 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         continue
                     
                     # Only process clear questions
+                    # Handle name variations (sauron, soran, zoran due to transcription errors)
                     is_question = (
                         "?" in text or 
-                        lower.startswith(("hey sauron", "ok sauron", "sauron", "what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you"))
+                        lower.startswith(("hey sauron", "ok sauron", "sauron", "hey soran", "ok soran", "soran", "hey zoran", "zoran", "what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you"))
                     )
                     
                     if is_question and conf.send_sms_on_questions:

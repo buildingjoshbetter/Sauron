@@ -121,7 +121,7 @@ def load_config() -> Config:
                 "Full explicit language is allowed. Mirror the user's tone — if they swear, you swear back."
             ),
         ),
-        sms_max_chars=int(os.getenv("SMS_MAX_CHARS", "300")),
+        sms_max_chars=int(os.getenv("SMS_MAX_CHARS", "1600")),
         blocklist_patterns=[
             p.strip() for p in os.getenv("BLOCKLIST_PATTERNS", "").split(",") if p.strip()
         ],
