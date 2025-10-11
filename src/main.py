@@ -20,6 +20,7 @@ from .tools import get_local_time, get_weather_summary
 from .memory import MemorySystem
 from .summarization import run_daily_cleanup
 from .computer_vision import process_motion_event
+from .storage import storage_monitor_worker
 
 
 def setup_logging(level: str, data_dir: Path) -> None:
@@ -539,6 +540,11 @@ def main() -> None:
     t_cleanup = threading.Thread(target=daily_cleanup_worker, args=(conf, memory_for_cleanup), daemon=True)
     threads.append(t_cleanup)
     t_cleanup.start()
+    
+    # Start storage monitor worker
+    t_storage = threading.Thread(target=storage_monitor_worker, args=(conf, memory_for_cleanup), daemon=True)
+    threads.append(t_storage)
+    t_storage.start()
     
     t_audio = threading.Thread(target=audio_producer, args=(conf, audio_q), daemon=True)
     threads.append(t_audio)
