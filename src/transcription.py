@@ -93,9 +93,9 @@ def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = 
     # Try local Whisper first (best for Pi 5)
     if use_local:
         text = transcribe_local_whisper(wav_path, model_size)
-        if text or text == "":  # Return even if empty (valid transcription)
-            return text
-        logging.warning("local whisper failed, trying next option")
+        # Return the result (even if empty - that's valid)
+        # Only fall through if there was an actual error (text would be None or exception)
+        return text
     
     # Try NAS Whisper
     if nas_whisper_url:
