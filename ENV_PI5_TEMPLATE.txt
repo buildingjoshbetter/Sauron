@@ -1,9 +1,16 @@
 # API Keys
 OPENROUTER_API_KEY=your_openrouter_key_here
-OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-OPENROUTER_FAST_MODEL=google/gemini-2.0-flash-exp:free
+
+# LLM Routing (Optimized for SPEED + QUALITY, using paid tiers)
+# Simple queries (greetings, basic Q&A): ~0.8s response
+OPENROUTER_FAST_MODEL=openai/gpt-4o-mini
+# Medium queries (general questions): ~1.5s response
 OPENROUTER_MEDIUM_MODEL=openai/gpt-4o-mini
+# Complex queries (memory recall, analysis): ~2-3s response
+OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
+# Ultra queries (multi-step reasoning): ~4-6s response
 OPENROUTER_ULTRA_MODEL=openai/gpt-4o
+# Genius queries (deep research, cross-referencing): ~10-15s response
 OPENROUTER_GENIUS_MODEL=openai/o1-preview
 OPENAI_API_KEY=your_openai_key_here
 TWILIO_ACCOUNT_SID=your_twilio_sid_here
@@ -42,7 +49,8 @@ TIMEZONE=America/Chicago
 # LOCAL Whisper on Pi 5 (MUCH FASTER!)
 USE_LOCAL_WHISPER=true
 WHISPER_MODEL_SIZE=base
-ENABLE_STREAMING_TRANSCRIPTION=false
+# CRITICAL: Enable streaming for instant trigger word detection (<1s ack SMS!)
+ENABLE_STREAMING_TRANSCRIPTION=true
 NAS_WHISPER_URL=
 
 # NAS settings (not needed for Pi 5)
