@@ -569,24 +569,14 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         selected_model = conf.openrouter_ultra_model
                                     else:  # genius
                                         # Genius queries: search all 3 tiers + maximum context + deep reasoning
-                                        # Use tiered memory for comprehensive search
-                                        tiered_results = memory.tiered.search_tiered(text, max_results=10)
-                                        
-                                        # Build enhanced context with tiered search results
+                                        # Tiered memory temporarily disabled - use standard memory for now
                                         context = memory.build_context_window(max_recent=50, current_query=text)
                                         memory_summary = memory.get_memory_summary(current_query=text)
                                         
-                                        # Add tiered search results to system prompt
+                                        # Add memory to system prompt
                                         enhanced_system = conf.safety_system_prompt
                                         if memory_summary:
                                             enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
-                                        
-                                        if tiered_results["results"]:
-                                            tier_info = f"\n\nTiered Memory Search ({tiered_results['tier']}, {tiered_results['search_time_ms']}ms):\n"
-                                            for result in tiered_results["results"][:5]:
-                                                tier_info += f"- [{result.get('date', result.get('timestamp', 'unknown'))}] {result['content'][:200]}...\n"
-                                            enhanced_system += tier_info
-                                            logging.info(f"Added {len(tiered_results['results'])} tiered results to context")
                                         
                                         selected_model = conf.openrouter_genius_model
                                     

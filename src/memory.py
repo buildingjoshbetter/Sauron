@@ -9,7 +9,8 @@ import logging
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime
-from .tiered_memory import TieredMemory
+# Temporarily disabled - causing initialization to fail
+# from .tiered_memory import TieredMemory
 
 
 class MemorySystem:
@@ -33,8 +34,8 @@ class MemorySystem:
         self.facts: Dict[str, str] = {}  # key: fact, value: context
         self.summaries: List[Dict] = []  # rolling summaries of conversation chunks
         
-        # Initialize tiered memory system
-        self.tiered = TieredMemory(self.local_data_dir, memory_dir)
+        # Initialize tiered memory system (temporarily disabled)
+        # self.tiered = TieredMemory(self.local_data_dir, memory_dir)
         
         self._load()
         self._ensure_user_profile()
@@ -79,11 +80,11 @@ class MemorySystem:
             with open(self.summaries_file, "w") as f:
                 json.dump(self.summaries, f, indent=2)
             
-            # Sync Tier 1 cache (async, don't block)
-            try:
-                self.tiered.sync_tier1(self)
-            except Exception as e:
-                logging.warning(f"Failed to sync Tier 1 cache: {e}")
+                # Sync Tier 1 cache (async, don't block) - temporarily disabled
+                # try:
+                #     self.tiered.sync_tier1(self)
+                # except Exception as e:
+                #     logging.warning(f"Failed to sync Tier 1 cache: {e}")
         except Exception as e:
             logging.warning("failed to save memory: %s", e)
     
