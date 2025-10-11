@@ -19,12 +19,11 @@ sudo apt-get upgrade -y
 echo ""
 echo -e "${YELLOW}Step 2: Install System Dependencies${NC}"
 sudo apt-get install -y \
-    python3.11 \
-    python3.11-venv \
+    python3 \
+    python3-venv \
     python3-pip \
     git \
     libopenblas0 \
-    libatlas-base-dev \
     portaudio19-dev \
     python3-pyaudio \
     alsa-utils \
@@ -33,7 +32,7 @@ sudo apt-get install -y \
 
 echo ""
 echo -e "${YELLOW}Step 3: Create Virtual Environment${NC}"
-python3.11 -m venv .venv
+python3 -m venv .venv
 source .venv/bin/activate
 
 echo ""
