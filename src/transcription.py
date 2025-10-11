@@ -83,20 +83,26 @@ def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> tuple[str, bool]:
         return ("", False)
 
 
-def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "tiny", nas_whisper_url: str = "") -> str:
+def transcribe(api_key: str, wav_path: Path, use_local: bool, model_size: str = "medium", nas_whisper_url: str = "") -> str:
     """
-    Transcription using NAS Whisper (always).
-    Fast, reliable, no API costs.
+    Smart transcription priority:
+    1. Local Whisper (if enabled and on Pi 5)
+    2. NAS Whisper (if URL configured)
+    3. OpenAI API (fallback)
     """
-    # Use NAS Whisper (no fallback needed)
+    # Try local Whisper first (best for Pi 5)
+    if use_local:
+        text = transcribe_local_whisper(wav_path, model_size)
+        if text or text == "":  # Return even if empty (valid transcription)
+            return text
+        logging.warning("local whisper failed, trying next option")
+    
+    # Try NAS Whisper
     if nas_whisper_url:
         text, success = transcribe_nas_whisper(wav_path, nas_whisper_url)
         if success:
             return text  # Return even if empty (valid transcription)
-        else:
-            logging.error("NAS whisper failed - check NAS connection!")
-            return ""
+        logging.warning("NAS whisper failed, falling back to OpenAI API")
     
-    # No NAS URL configured - error
-    logging.error("NAS_WHISPER_URL not configured in .env!")
-    return ""
+    # Fallback to OpenAI API
+    return transcribe_with_openai(api_key, wav_path)
