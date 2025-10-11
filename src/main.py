@@ -199,10 +199,10 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                     trigger_words = ["atlas", "tower", "nexus", "sentinel"]
                     is_addressed = any(trigger in lower for trigger in trigger_words)
                     
-                    # Check if it's a question
+                    # Check if it's a question OR command (broader detection)
                     is_question = (
                         "?" in text or 
-                        any(lower.startswith(q) for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you"])
+                        any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
                     )
                     
                     # ALWAYS log to memory (for context/recall later)
@@ -271,10 +271,18 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                     system_override=enhanced_system,
                                     personality=conf.personality_prompt,
                                 )
+                                sms_to_send = sanitize_sms(
+                                    body=reply,
+                                    max_chars=conf.sms_max_chars,
+                                    allow_urls=conf.allow_urls_in_sms,
+                                    blocklist_patterns=conf.blocklist_patterns,
+                                )
                             elif any(k in lower for k in ("what time", "current time", "time now")):
                                 reply = f"It's {get_local_time(conf.timezone)}."
+                                sms_to_send = reply
                             elif any(k in lower for k in ("weather", "temperature", "forecast")):
                                 reply = f"{get_weather_summary(conf.latitude, conf.longitude)}."
+                                sms_to_send = reply
                             else:
                                 # Build smart context: recent + relevant past messages + memory summary
                                 context = memory.build_context_window(max_recent=30, current_query=text)
