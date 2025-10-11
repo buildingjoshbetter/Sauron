@@ -7,6 +7,8 @@ from pathlib import Path
 class Config:
     openrouter_api_key: str
     openrouter_model: str
+    openrouter_fast_model: str  # Fast model for simple queries (Gemini Flash)
+    openrouter_medium_model: str  # Medium model for moderate queries (GPT-4o-mini)
     openai_api_key: str
     twilio_account_sid: str
     twilio_auth_token: str
@@ -89,6 +91,8 @@ def load_config() -> Config:
     return Config(
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
         openrouter_model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet"),
+        openrouter_fast_model=os.getenv("OPENROUTER_FAST_MODEL", "google/gemini-flash-1.5"),
+        openrouter_medium_model=os.getenv("OPENROUTER_MEDIUM_MODEL", "openai/gpt-4o-mini"),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),

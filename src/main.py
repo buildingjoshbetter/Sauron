@@ -34,6 +34,45 @@ def setup_logging(level: str, data_dir: Path) -> None:
     )
 
 
+def classify_query_type(text: str) -> str:
+    """
+    Classify query type to determine routing:
+    - 'factual': Direct API calls, no LLM needed (weather, time)
+    - 'simple': Gemini Flash, minimal context (greetings, basic questions)
+    - 'medium': GPT-4o-mini, moderate context (general questions)
+    - 'complex': Claude 3.5 Sonnet, full context + memory (deep recall, analysis)
+    """
+    lower = text.lower()
+    
+    # Factual queries - Direct API calls, no LLM needed
+    if any(kw in lower for kw in ["weather", "temperature", "forecast"]):
+        return "factual_weather"
+    if any(kw in lower for kw in ["time", "what time", "current time"]):
+        return "factual_time"
+    
+    # Simple queries - Fast LLM responses, minimal context
+    simple_keywords = [
+        "hello", "hi", "hey", "what's up", "how are you",
+        "thanks", "thank you", "ok", "okay",
+        "who are you", "what are you"
+    ]
+    if any(kw in lower for kw in simple_keywords):
+        return "simple"
+    
+    # Complex queries - Need deep context/memory
+    complex_keywords = [
+        "remind me", "remember", "recall", "we discussed", "we talked",
+        "yesterday", "last week", "last time", "previously",
+        "analyze", "explain", "why did", "how does", "compare",
+        "opinion", "think about", "advice", "should i"
+    ]
+    if any(kw in lower for kw in complex_keywords):
+        return "complex"
+    
+    # Default to medium for general questions
+    return "medium"
+
+
 def audio_producer(conf, q: queue.Queue[Path]) -> None:
     chunker = AudioChunker(
         device=conf.audio_device,
@@ -277,39 +316,58 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                     allow_urls=conf.allow_urls_in_sms,
                                     blocklist_patterns=conf.blocklist_patterns,
                                 )
-                            elif any(k in lower for k in ("what time", "current time", "time now")):
-                                reply = f"It's {get_local_time(conf.timezone)}."
-                                sms_to_send = reply
-                            elif any(k in lower for k in ("weather", "temperature", "forecast")):
-                                reply = f"{get_weather_summary(conf.latitude, conf.longitude)}."
-                                sms_to_send = reply
                             else:
-                                # Build smart context: recent + relevant past messages + memory summary
-                                context = memory.build_context_window(max_recent=30, current_query=text)
-                                memory_summary = memory.get_memory_summary(current_query=text)
+                                # Smart routing based on query type
+                                query_type = classify_query_type(text)
+                                logging.info(f"query type: {query_type}")
                                 
-                                # Inject memory summary into system prompt
-                                enhanced_system = conf.safety_system_prompt
-                                if memory_summary:
-                                    enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
-                                
-                                # Add system message + context
-                                full_context = [base_system] + context
-                                
-                                # Get response from Claude (non-streaming for cleaner SMS)
-                                reply = chat_openrouter(
-                                    conf.openrouter_api_key,
-                                    conf.openrouter_model,
-                                    full_context,
-                                    system_override=enhanced_system,
-                                    personality=conf.personality_prompt,
-                                )
-                                sms_to_send = sanitize_sms(
-                                    body=reply,
-                                    max_chars=conf.sms_max_chars,
-                                    allow_urls=conf.allow_urls_in_sms,
-                                    blocklist_patterns=conf.blocklist_patterns,
-                                )
+                                # Handle factual queries without LLM
+                                if query_type == "factual_time":
+                                    reply = f"It's {get_local_time(conf.timezone)}."
+                                    sms_to_send = reply
+                                elif query_type == "factual_weather":
+                                    reply = f"{get_weather_summary(conf.latitude, conf.longitude)}."
+                                    sms_to_send = reply
+                                # Build context based on complexity for LLM queries
+                                else:
+                                    # LLM-based queries: route by complexity
+                                    if query_type == "simple":
+                                        # Simple queries: minimal context, fast model
+                                        context = memory.build_context_window(max_recent=5, current_query=text)
+                                        enhanced_system = conf.safety_system_prompt
+                                        selected_model = conf.openrouter_fast_model
+                                    elif query_type == "medium":
+                                        # Medium queries: moderate context, balanced model
+                                        context = memory.build_context_window(max_recent=15, current_query=text)
+                                        enhanced_system = conf.safety_system_prompt
+                                        selected_model = conf.openrouter_medium_model
+                                    else:  # complex
+                                        # Complex queries: full context + memory, smart model
+                                        context = memory.build_context_window(max_recent=30, current_query=text)
+                                        memory_summary = memory.get_memory_summary(current_query=text)
+                                        enhanced_system = conf.safety_system_prompt
+                                        if memory_summary:
+                                            enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
+                                        selected_model = conf.openrouter_model
+                                    
+                                    # Add system message + context
+                                    full_context = [base_system] + context
+                                    
+                                    # Get response from selected model
+                                    logging.info(f"using model: {selected_model}")
+                                    reply = chat_openrouter(
+                                        conf.openrouter_api_key,
+                                        selected_model,
+                                        full_context,
+                                        system_override=enhanced_system,
+                                        personality=conf.personality_prompt,
+                                    )
+                                    sms_to_send = sanitize_sms(
+                                        body=reply,
+                                        max_chars=conf.sms_max_chars,
+                                        allow_urls=conf.allow_urls_in_sms,
+                                        blocklist_patterns=conf.blocklist_patterns,
+                                    )
                             
                             # Add assistant response to memory
                             memory.add_message("assistant", reply)
