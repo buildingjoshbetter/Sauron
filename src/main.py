@@ -38,11 +38,12 @@ def setup_logging(level: str, data_dir: Path) -> None:
 def classify_query_type(text: str) -> str:
     """
     Classify query type to determine routing:
-    - 'factual': Direct API calls, no LLM needed (weather, time)
-    - 'simple': Gemini Flash, minimal context (greetings, basic questions)
-    - 'medium': GPT-4o-mini, moderate context (general questions)
-    - 'complex': Claude 3.5 Sonnet, full context + memory (deep recall, analysis)
-    - 'ultra': GPT-4o, maximum context + deep analysis (multi-step reasoning, comparisons)
+    - 'factual': Direct API calls, no LLM needed (weather, time) - 0.3s
+    - 'simple': Gemini Flash, minimal context (greetings, basic questions) - 1s
+    - 'medium': GPT-4o-mini, moderate context (general questions) - 2s
+    - 'complex': Claude 3.5 Sonnet, full context + memory (deep recall, analysis) - 3-4s
+    - 'ultra': GPT-4o, maximum context + deep analysis (multi-step reasoning, comparisons) - 5-7s
+    - 'genius': o1-preview, multi-step reasoning + research (deep analysis, cross-referencing) - 10-20s
     """
     lower = text.lower()
     
@@ -60,6 +61,17 @@ def classify_query_type(text: str) -> str:
     ]
     if any(kw in lower for kw in simple_keywords):
         return "simple"
+    
+    # Genius queries - Requires deep multi-step reasoning across tiers
+    genius_keywords = [
+        "research", "investigate", "find out", "look into",
+        "cross-reference", "verify", "fact-check",
+        "summarize all", "comprehensive", "full analysis",
+        "timeline", "pattern", "trend over time",
+        "what's the connection between", "how are these related"
+    ]
+    if any(kw in lower for kw in genius_keywords):
+        return "genius"
     
     # Ultra-complex queries - Maximum reasoning needed
     ultra_keywords = [
@@ -129,6 +141,14 @@ def get_acknowledgment_message(query_type: str) -> str:
             "Give me a few seconds...",
             "Running full analysis...",
             "Hold tight, thinking..."
+        ],
+        "genius": [
+            "This requires deep analysis...",
+            "Searching all tiers, hold on...",
+            "Running comprehensive search...",
+            "This'll take 10-20 seconds...",
+            "Digging through everything...",
+            "Cross-referencing history..."
         ]
     }
     
@@ -428,7 +448,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         if memory_summary:
                                             enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
                                         selected_model = conf.openrouter_model
-                                    else:  # ultra
+                                    elif query_type == "ultra":
                                         # Ultra-complex queries: maximum context + memory, ultra model
                                         context = memory.build_context_window(max_recent=50, current_query=text)
                                         memory_summary = memory.get_memory_summary(current_query=text)
@@ -436,6 +456,28 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         if memory_summary:
                                             enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
                                         selected_model = conf.openrouter_ultra_model
+                                    else:  # genius
+                                        # Genius queries: search all 3 tiers + maximum context + deep reasoning
+                                        # Use tiered memory for comprehensive search
+                                        tiered_results = memory.tiered.search_tiered(text, max_results=10)
+                                        
+                                        # Build enhanced context with tiered search results
+                                        context = memory.build_context_window(max_recent=50, current_query=text)
+                                        memory_summary = memory.get_memory_summary(current_query=text)
+                                        
+                                        # Add tiered search results to system prompt
+                                        enhanced_system = conf.safety_system_prompt
+                                        if memory_summary:
+                                            enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
+                                        
+                                        if tiered_results["results"]:
+                                            tier_info = f"\n\nTiered Memory Search ({tiered_results['tier']}, {tiered_results['search_time_ms']}ms):\n"
+                                            for result in tiered_results["results"][:5]:
+                                                tier_info += f"- [{result.get('date', result.get('timestamp', 'unknown'))}] {result['content'][:200]}...\n"
+                                            enhanced_system += tier_info
+                                            logging.info(f"Added {len(tiered_results['results'])} tiered results to context")
+                                        
+                                        selected_model = conf.openrouter_genius_model
                                     
                                     # Add system message + context
                                     full_context = [base_system] + context
