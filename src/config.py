@@ -9,6 +9,7 @@ class Config:
     openrouter_model: str
     openrouter_fast_model: str  # Fast model for simple queries (Gemini Flash)
     openrouter_medium_model: str  # Medium model for moderate queries (GPT-4o-mini)
+    openrouter_ultra_model: str  # Ultra-smart model for very complex queries (o1-preview)
     openai_api_key: str
     twilio_account_sid: str
     twilio_auth_token: str
@@ -93,6 +94,7 @@ def load_config() -> Config:
         openrouter_model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet"),
         openrouter_fast_model=os.getenv("OPENROUTER_FAST_MODEL", "google/gemini-flash-1.5"),
         openrouter_medium_model=os.getenv("OPENROUTER_MEDIUM_MODEL", "openai/gpt-4o-mini"),
+        openrouter_ultra_model=os.getenv("OPENROUTER_ULTRA_MODEL", "openai/gpt-4o"),
         openai_api_key=os.getenv("OPENAI_API_KEY", ""),
         twilio_account_sid=os.getenv("TWILIO_ACCOUNT_SID", ""),
         twilio_auth_token=os.getenv("TWILIO_AUTH_TOKEN", ""),

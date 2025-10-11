@@ -41,6 +41,7 @@ def classify_query_type(text: str) -> str:
     - 'simple': Gemini Flash, minimal context (greetings, basic questions)
     - 'medium': GPT-4o-mini, moderate context (general questions)
     - 'complex': Claude 3.5 Sonnet, full context + memory (deep recall, analysis)
+    - 'ultra': GPT-4o, maximum context + deep analysis (multi-step reasoning, comparisons)
     """
     lower = text.lower()
     
@@ -59,11 +60,20 @@ def classify_query_type(text: str) -> str:
     if any(kw in lower for kw in simple_keywords):
         return "simple"
     
+    # Ultra-complex queries - Maximum reasoning needed
+    ultra_keywords = [
+        "compare", "difference between", "better than", "worse than",
+        "analyze", "break down", "step by step", "walk me through",
+        "pros and cons", "trade-offs", "evaluate", "recommend"
+    ]
+    if any(kw in lower for kw in ultra_keywords):
+        return "ultra"
+    
     # Complex queries - Need deep context/memory
     complex_keywords = [
         "remind me", "remember", "recall", "we discussed", "we talked",
         "yesterday", "last week", "last time", "previously",
-        "analyze", "explain", "why did", "how does", "compare",
+        "explain", "why did", "how does",
         "opinion", "think about", "advice", "should i"
     ]
     if any(kw in lower for kw in complex_keywords):
@@ -71,6 +81,59 @@ def classify_query_type(text: str) -> str:
     
     # Default to medium for general questions
     return "medium"
+
+
+def get_acknowledgment_message(query_type: str) -> str:
+    """
+    Get a randomized acknowledgment message based on query complexity.
+    Creates a 'splash screen' effect to show the system is working.
+    """
+    import random
+    
+    ack_messages = {
+        "factual_time": [
+            "One sec...",
+            "Checking...",
+            "Hold on..."
+        ],
+        "factual_weather": [
+            "Pulling weather data...",
+            "Checking forecast...",
+            "One moment..."
+        ],
+        "simple": [
+            "Got it.",
+            "On it.",
+            "Yep.",
+            "Acknowledged.",
+            "Processing..."
+        ],
+        "medium": [
+            "Give me a sec...",
+            "Looking into it...",
+            "Hold on...",
+            "One moment...",
+            "Checking..."
+        ],
+        "complex": [
+            "Pulling from memory...",
+            "Searching context...",
+            "Give me a moment to recall...",
+            "Digging through history...",
+            "One sec, reviewing..."
+        ],
+        "ultra": [
+            "This'll take a moment...",
+            "Analyzing deeply...",
+            "Give me a few seconds...",
+            "Running full analysis...",
+            "Hold tight, thinking..."
+        ]
+    }
+    
+    # Get messages for this query type, or default to medium
+    messages = ack_messages.get(query_type, ack_messages["medium"])
+    return random.choice(messages)
 
 
 def audio_producer(conf, q: queue.Queue[Path]) -> None:
@@ -321,6 +384,21 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                 query_type = classify_query_type(text)
                                 logging.info(f"query type: {query_type}")
                                 
+                                # Send instant acknowledgment for non-simple queries
+                                if query_type not in ["factual_time", "factual_weather", "simple"]:
+                                    ack_msg = get_acknowledgment_message(query_type)
+                                    try:
+                                        send_sms(
+                                            account_sid=conf.twilio_account_sid,
+                                            auth_token=conf.twilio_auth_token,
+                                            from_number=conf.twilio_from_number,
+                                            to_number=conf.twilio_to_number,
+                                            body=ack_msg,
+                                        )
+                                        logging.info(f"sent ack SMS: {ack_msg}")
+                                    except Exception as e:
+                                        logging.warning("failed to send ack SMS: %s", e)
+                                
                                 # Handle factual queries without LLM
                                 if query_type == "factual_time":
                                     reply = f"It's {get_local_time(conf.timezone)}."
@@ -341,7 +419,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         context = memory.build_context_window(max_recent=15, current_query=text)
                                         enhanced_system = conf.safety_system_prompt
                                         selected_model = conf.openrouter_medium_model
-                                    else:  # complex
+                                    elif query_type == "complex":
                                         # Complex queries: full context + memory, smart model
                                         context = memory.build_context_window(max_recent=30, current_query=text)
                                         memory_summary = memory.get_memory_summary(current_query=text)
@@ -349,6 +427,14 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         if memory_summary:
                                             enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
                                         selected_model = conf.openrouter_model
+                                    else:  # ultra
+                                        # Ultra-complex queries: maximum context + memory, ultra model
+                                        context = memory.build_context_window(max_recent=50, current_query=text)
+                                        memory_summary = memory.get_memory_summary(current_query=text)
+                                        enhanced_system = conf.safety_system_prompt
+                                        if memory_summary:
+                                            enhanced_system += f"\n\nLong-term memory:\n{memory_summary}"
+                                        selected_model = conf.openrouter_ultra_model
                                     
                                     # Add system message + context
                                     full_context = [base_system] + context
