@@ -41,8 +41,8 @@ pip install --upgrade pip
 pip install -r requirements.txt
 
 echo ""
-echo -e "${YELLOW}Step 5: Install Whisper (Medium Model)${NC}"
-pip install openai-whisper
+echo -e "${YELLOW}Step 5: Download Whisper Model (Medium)${NC}"
+echo "This will download ~1.5GB on first use..."
 
 echo ""
 echo -e "${YELLOW}Step 6: Create Data Directories${NC}"

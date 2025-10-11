@@ -6,33 +6,24 @@ import subprocess
 import logging
 
 
-def transcribe_local_whisper(wav_path: Path, model_size: str = "tiny") -> str:
+def transcribe_local_whisper(wav_path: Path, model_size: str = "medium") -> str:
     """
-    Transcribe audio using local Whisper (faster-whisper).
-    Speed: 0.5-2 seconds for 10-second audio (vs 2-5 sec for API).
+    Transcribe audio using local Whisper (faster-whisper library).
+    Speed: 2-3 seconds for 10-second audio on Pi 5.
     """
     try:
-        # Use faster-whisper CLI
-        cmd = [
-            "whisper",
-            str(wav_path),
-            "--model", model_size,
-            "--output_format", "txt",
-            "--output_dir", "/tmp",
-            "--language", "en",
-        ]
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=30)
+        from faster_whisper import WhisperModel
         
-        if result.returncode == 0:
-            # Read output file
-            output_file = Path(f"/tmp/{wav_path.stem}.txt")
-            if output_file.exists():
-                text = output_file.read_text().strip()
-                output_file.unlink()  # Cleanup
-                return text
+        # Load model (cached after first use)
+        model = WhisperModel(model_size, device="cpu", compute_type="int8")
         
-        logging.warning("local whisper failed, output: %s", result.stderr)
-        return ""
+        # Transcribe
+        segments, info = model.transcribe(str(wav_path), beam_size=3, language="en")
+        text = " ".join([segment.text for segment in segments])
+        
+        logging.info(f"transcribed with {model_size} model (lang={info.language}, prob={info.language_probability:.2f})")
+        return text.strip()
+        
     except Exception as e:
         logging.error("local whisper error: %s", e)
         return ""
