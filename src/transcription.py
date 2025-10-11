@@ -78,7 +78,7 @@ def transcribe_nas_whisper(wav_path: Path, nas_url: str) -> tuple[str, bool]:
     try:
         with open(wav_path, "rb") as f:
             files = {"file": (wav_path.name, f, "audio/wav")}
-            resp = requests.post(f"{nas_url}/transcribe", files=files, timeout=30)
+            resp = requests.post(f"{nas_url}/transcribe", files=files, timeout=60)
         
         if resp.status_code == 200:
             data = resp.json()
