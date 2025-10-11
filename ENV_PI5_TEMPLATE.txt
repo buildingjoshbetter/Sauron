@@ -1,7 +1,7 @@
 # API Keys
 OPENROUTER_API_KEY=your_openrouter_key_here
 OPENROUTER_MODEL=anthropic/claude-3.5-sonnet
-OPENROUTER_FAST_MODEL=google/gemini-flash-1.5
+OPENROUTER_FAST_MODEL=google/gemini-2.0-flash-exp:free
 OPENROUTER_MEDIUM_MODEL=openai/gpt-4o-mini
 OPENROUTER_ULTRA_MODEL=openai/gpt-4o
 OPENROUTER_GENIUS_MODEL=openai/o1-preview

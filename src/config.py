@@ -93,7 +93,7 @@ def load_config() -> Config:
     return Config(
         openrouter_api_key=os.getenv("OPENROUTER_API_KEY", ""),
         openrouter_model=os.getenv("OPENROUTER_MODEL", "anthropic/claude-3.5-sonnet"),
-        openrouter_fast_model=os.getenv("OPENROUTER_FAST_MODEL", "google/gemini-flash-1.5"),
+        openrouter_fast_model=os.getenv("OPENROUTER_FAST_MODEL", "google/gemini-2.0-flash-exp:free"),
         openrouter_medium_model=os.getenv("OPENROUTER_MEDIUM_MODEL", "openai/gpt-4o-mini"),
         openrouter_ultra_model=os.getenv("OPENROUTER_ULTRA_MODEL", "openai/gpt-4o"),
         openrouter_genius_model=os.getenv("OPENROUTER_GENIUS_MODEL", "openai/o1-preview"),
