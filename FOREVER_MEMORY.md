@@ -1,7 +1,50 @@
 # SAURON Forever Memory System
 
 ## Overview
-SAURON now has **unlimited contextual memory** spanning months or even years. All conversations, observations, and events are stored forever on your NAS, with intelligent summarization and retrieval.
+SAURON now has **unlimited contextual memory** spanning months or even years, with a **3-tier hierarchical architecture** that optimizes for both speed and depth. The system automatically cascades through tiers to find the perfect balance between recall speed and historical depth.
+
+## 3-Tier Memory Architecture
+
+### **Tier 1: Local Fast Cache (Raspberry Pi SD Card)**
+📍 **Location**: `/home/pi/sauron_data/tier1_cache/`  
+⚡ **Speed**: ~0.5 seconds  
+💾 **Size**: 10-15GB (10-25% of SD card)  
+📊 **Contents**:
+- Last 7 days of high-detail summaries
+- Last 1000 conversation messages
+- 500 most recent facts
+- Active vision events
+
+**Use case**: Quick recall of recent events  
+*"What did I say this morning about the project?"*
+
+### **Tier 2: NAS Medium Detail**
+📍 **Location**: `/mnt/nas/sauron/tier2_medium/`  
+⚡ **Speed**: ~2 seconds  
+💾 **Size**: ~50GB  
+📊 **Contents**:
+- Last 3 months of medium-detail summaries
+- Full conversation history (all messages)
+- All facts (10,000+)
+- Daily vision summaries
+
+**Use case**: Moderate-depth recall  
+*"Remind me what we discussed last week about Whisper"*
+
+### **Tier 3: NAS Deep Archive**
+📍 **Location**: `/mnt/nas/sauron/tier3_deep/`  
+⚡ **Speed**: ~5-10 seconds  
+💾 **Size**: Unlimited  
+📊 **Contents**:
+- Full history (years of data)
+- Highly compressed summaries (10x compression)
+- Raw audio/video archives
+- Long-term patterns and trends
+
+**Use case**: Deep historical search  
+*"What was that funny TV show quote from 4 months ago?"*
+
+---
 
 ## How It Works
 
