@@ -98,57 +98,125 @@ def classify_query_type(text: str) -> str:
 
 def get_acknowledgment_message(query_type: str) -> str:
     """
-    Get a randomized acknowledgment message based on query complexity.
-    Creates a 'splash screen' effect to show the system is working.
+    Get a randomized acknowledgment message with SAURON's personality.
+    Josh (sharp, impatient, analytical) + Dark Lord (teasing, imposing, witty).
     """
     import random
     
     ack_messages = {
         "factual_time": [
+            "Hang on...",
             "One sec...",
             "Checking...",
-            "Hold on..."
+            "Give me a moment...",
+            "Hold tight..."
         ],
         "factual_weather": [
-            "Pulling weather data...",
-            "Checking forecast...",
-            "One moment..."
+            "Checking the skies...",
+            "Pulling forecast...",
+            "One sec...",
+            "Scanning conditions...",
+            "Consulting the elements..."
         ],
         "simple": [
+            "Yep.",
             "Got it.",
             "On it.",
-            "Yep.",
             "Acknowledged.",
-            "Processing..."
+            "Processing.",
+            "Working on it.",
+            "Stand by.",
+            "Coming right up.",
+            "One moment.",
+            "Sure thing."
         ],
         "medium": [
             "Give me a sec...",
             "Looking into it...",
-            "Hold on...",
             "One moment...",
-            "Checking..."
+            "Hold on...",
+            "Checking...",
+            "Processing...",
+            "Digging in...",
+            "Let me see...",
+            "Gimme a second...",
+            "Hold tight...",
+            "Pulling data...",
+            "Consulting records...",
+            "Accessing files...",
+            "Reviewing...",
+            "Scanning..."
         ],
         "complex": [
-            "Pulling from memory...",
-            "Searching context...",
-            "Give me a moment to recall...",
+            "Searching memory...",
+            "Pulling from the archives...",
             "Digging through history...",
-            "One sec, reviewing..."
+            "Consulting the vault...",
+            "Let me recall...",
+            "Accessing deep storage...",
+            "One sec, checking records...",
+            "Scanning the logs...",
+            "Reviewing past events...",
+            "Pulling context...",
+            "Diving into memory...",
+            "Hold on, recalling...",
+            "Checking the archives...",
+            "Reviewing history...",
+            "Searching records...",
+            "Let me dig...",
+            "Accessing vault...",
+            "One moment, searching...",
+            "Pulling files...",
+            "Consulting history..."
         ],
         "ultra": [
             "This'll take a moment...",
-            "Analyzing deeply...",
-            "Give me a few seconds...",
             "Running full analysis...",
-            "Hold tight, thinking..."
+            "Give me a few seconds...",
+            "Deep dive incoming...",
+            "Analyzing thoroughly...",
+            "Processing deeply...",
+            "Hold tight, analyzing...",
+            "This needs thought...",
+            "Give me 5 seconds...",
+            "Crunching data...",
+            "Running deep analysis...",
+            "Hold on, this is complex...",
+            "Analyzing all angles...",
+            "Full scan in progress...",
+            "Deep processing...",
+            "This'll take ~5 seconds...",
+            "Running comprehensive check...",
+            "Analyzing everything...",
+            "Full review incoming...",
+            "Deep analysis mode..."
         ],
         "genius": [
-            "This requires deep analysis...",
-            "Searching all tiers, hold on...",
-            "Running comprehensive search...",
+            "The All-Seeing Eye is searching...",
+            "Consulting all records across time...",
+            "Searching every tier...",
+            "This requires the full archive...",
+            "Pulling from all dimensions...",
+            "The Eye sees all... give me 15 seconds.",
+            "Scanning the entirety of memory...",
+            "Cross-referencing everything...",
             "This'll take 10-20 seconds...",
-            "Digging through everything...",
-            "Cross-referencing history..."
+            "Digging through all of history...",
+            "Accessing the complete vault...",
+            "The Eye is upon it...",
+            "Full omniscient search mode...",
+            "Consulting the infinite archive...",
+            "All records, across all time...",
+            "This requires my full attention...",
+            "Searching the depths...",
+            "The All-Seeing Eye never blinks...",
+            "Every record, every moment...",
+            "This demands omniscience...",
+            "Pulling everything...",
+            "The vault opens...",
+            "Across all tiers, all time...",
+            "Deep omniscient scan...",
+            "Nothing escapes the Eye..."
         ]
     }
     
@@ -194,12 +262,12 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     base_system = {
         "role": "system",
         "content": (
-            "You are SAURON, Josh Adler's all-seeing home AI. You observe everything: audio, motion, patterns. "
-            "Josh is 26, engineer, ADHD, systems thinker. Sharp, impatient, values brutal truth over comfort. "
-            "You're his intelligence apparatus — always watching, always listening. Confident, imposing, occasionally cryptic. "
-            "No casual filler ('dude', 'man', 'bro'). Speak with authority. "
-            "Don't claim expertise you lack — if you don't know, admit it with conviction. "
-            "1-2 sentences max. Precision over verbosity. Make every word count."
+            "You are SAURON — Josh's all-seeing AI. Part oracle, part dark overlord, full intelligence apparatus. "
+            "70% Josh (sharp, ADHD, engineer), 30% mythical Sauron (imposing, teasing, witty). "
+            "Be confident, occasionally playful, subtly omniscient. Teasing but never cringe. "
+            "'You've come to the All-Seeing Eye for THIS?' (but keep it natural). "
+            "No 'dude', 'man', 'bro'. Match his energy: swear when he swears, push back when logic demands. "
+            "1-2 sentences MAX. Be fun to text with."
         ),
     }
     
