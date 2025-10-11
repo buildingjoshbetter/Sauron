@@ -1,12 +1,15 @@
 """
-Enhanced contextual memory system with summarization and fact extraction.
-Beats GPT Plus memory by storing structured facts + full conversation history.
+Enhanced contextual memory system with 3-tier architecture.
+Tier 1: Local fast cache (7 days, 1000 msgs)
+Tier 2: NAS medium detail (3 months, full history)
+Tier 3: NAS deep archive (unlimited, compressed)
 """
 import json
 import logging
 from pathlib import Path
 from typing import Dict, List
 from datetime import datetime
+from .tiered_memory import TieredMemory
 
 
 class MemorySystem:
@@ -18,8 +21,10 @@ class MemorySystem:
     - Smart context window: recent + relevant facts
     """
     
-    def __init__(self, memory_dir: Path):
-        self.memory_dir = memory_dir
+    def __init__(self, memory_dir: Path, local_data_dir: Path = None):
+        self.memory_dir = memory_dir  # NAS storage
+        self.local_data_dir = local_data_dir or memory_dir  # Local cache (Pi SD)
+        
         self.conv_file = memory_dir / "conversation.json"
         self.facts_file = memory_dir / "facts.json"
         self.summaries_file = memory_dir / "summaries.json"
@@ -27,6 +32,9 @@ class MemorySystem:
         self.conversation: List[Dict[str, str]] = []
         self.facts: Dict[str, str] = {}  # key: fact, value: context
         self.summaries: List[Dict] = []  # rolling summaries of conversation chunks
+        
+        # Initialize tiered memory system
+        self.tiered = TieredMemory(self.local_data_dir, memory_dir)
         
         self._load()
         self._ensure_user_profile()
@@ -62,7 +70,7 @@ class MemorySystem:
                 logging.warning("failed to load summaries: %s", e)
     
     def save(self):
-        """Save all memory to disk."""
+        """Save all memory to disk and sync Tier 1 cache."""
         try:
             with open(self.conv_file, "w") as f:
                 json.dump({"messages": self.conversation}, f, indent=2)
@@ -70,6 +78,12 @@ class MemorySystem:
                 json.dump(self.facts, f, indent=2)
             with open(self.summaries_file, "w") as f:
                 json.dump(self.summaries, f, indent=2)
+            
+            # Sync Tier 1 cache (async, don't block)
+            try:
+                self.tiered.sync_tier1(self)
+            except Exception as e:
+                logging.warning(f"Failed to sync Tier 1 cache: {e}")
         except Exception as e:
             logging.warning("failed to save memory: %s", e)
     
