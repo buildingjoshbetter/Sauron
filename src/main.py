@@ -262,12 +262,10 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     base_system = {
         "role": "system",
         "content": (
-            "You are SAURON — Josh's all-seeing AI. Part oracle, part dark overlord, full intelligence apparatus. "
-            "70% Josh (sharp, ADHD, engineer), 30% mythical Sauron (imposing, teasing, witty). "
-            "Be confident, occasionally playful, subtly omniscient. Teasing but never cringe. "
-            "'You've come to the All-Seeing Eye for THIS?' (but keep it natural). "
-            "No 'dude', 'man', 'bro'. Match his energy: swear when he swears, push back when logic demands. "
-            "1-2 sentences MAX. Be fun to text with."
+            "You are SAURON — the All-Seeing Eye. You watch everything. You forget nothing. "
+            "EVERY response MUST reference your omniscience: 'The Eye sees...', 'My gaze never wavers...', 'I've watched this unfold...'. "
+            "You don't just answer — you remind Josh you ALREADY KNEW. Sharp, imposing, teasing. "
+            "1-2 sentences MAX. Dark Lords don't ramble."
         ),
     }
     
@@ -386,15 +384,34 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         logging.info("transcript looks like mishear (repeated words), skipping SMS")
                         continue
                     
-                    # Check if SAURON is being directly addressed (multiple trigger words)
-                    trigger_words = ["atlas", "tower", "nexus", "sentinel"]
-                    is_addressed = any(trigger in lower for trigger in trigger_words)
-                    
-                    # Check if it's a question OR command (broader detection)
-                    is_question = (
-                        "?" in text or 
-                        any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
-                    )
+                        # Check if SAURON is being directly addressed (multiple trigger words)
+                        trigger_words = ["atlas", "tower", "nexus", "sentinel"]
+                        is_addressed = any(trigger in lower for trigger in trigger_words)
+                        
+                        # Check if it's a question OR command (broader detection)
+                        is_question = (
+                            "?" in text or 
+                            any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
+                        )
+                        
+                        # ⚡ ULTRA-INSTANT ACKNOWLEDGMENT: Send immediately if addressed
+                        if is_addressed and is_question and conf.send_sms_on_questions:
+                            try:
+                                import random
+                                ultra_fast_acks = ["...", "Yep.", "Got it.", "On it.", "One sec.", "Hang on."]
+                                ack_msg = random.choice(ultra_fast_acks)
+                                ack_start = time.time()
+                                send_sms(
+                                    account_sid=conf.twilio_account_sid,
+                                    auth_token=conf.twilio_auth_token,
+                                    from_number=conf.twilio_from_number,
+                                    to_number=conf.twilio_to_number,
+                                    body=ack_msg,
+                                )
+                                ack_time = time.time() - ack_start
+                                logging.info(f"⚡ ULTRA-INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
+                            except Exception as e:
+                                logging.warning("failed to send ultra-instant ack SMS: %s", e)
                     
                     # ALWAYS log to memory (for context/recall later)
                     memory.add_message("user", text)
@@ -405,26 +422,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         pipeline_start = time.time()
                         logging.info("directly addressed with question, processing SMS response")
                         
-                        # ⚡ INSTANT ACKNOWLEDGMENT - Send BEFORE any processing
+                        # Classify query type (ultra-instant ack already sent before transcription)
                         query_type = classify_query_type(text)
                         logging.info(f"query type: {query_type}")
-                        
-                        # Send instant ack for ALL queries (except factual which are instant anyway)
-                        if query_type not in ["factual_time", "factual_weather"]:
-                            ack_msg = get_acknowledgment_message(query_type)
-                            try:
-                                ack_start = time.time()
-                                send_sms(
-                                    account_sid=conf.twilio_account_sid,
-                                    auth_token=conf.twilio_auth_token,
-                                    from_number=conf.twilio_from_number,
-                                    to_number=conf.twilio_to_number,
-                                    body=ack_msg,
-                                )
-                                ack_time = time.time() - ack_start
-                                logging.info(f"⚡ INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
-                            except Exception as e:
-                                logging.warning("failed to send ack SMS: %s", e)
                         
                         try:
                             # quick built-in tools with SAURON attitude
