@@ -405,6 +405,27 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         pipeline_start = time.time()
                         logging.info("directly addressed with question, processing SMS response")
                         
+                        # ⚡ INSTANT ACKNOWLEDGMENT - Send BEFORE any processing
+                        query_type = classify_query_type(text)
+                        logging.info(f"query type: {query_type}")
+                        
+                        # Send instant ack for ALL queries (except factual which are instant anyway)
+                        if query_type not in ["factual_time", "factual_weather"]:
+                            ack_msg = get_acknowledgment_message(query_type)
+                            try:
+                                ack_start = time.time()
+                                send_sms(
+                                    account_sid=conf.twilio_account_sid,
+                                    auth_token=conf.twilio_auth_token,
+                                    from_number=conf.twilio_from_number,
+                                    to_number=conf.twilio_to_number,
+                                    body=ack_msg,
+                                )
+                                ack_time = time.time() - ack_start
+                                logging.info(f"⚡ INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
+                            except Exception as e:
+                                logging.warning("failed to send ack SMS: %s", e)
+                        
                         try:
                             # quick built-in tools with SAURON attitude
                             lower = text.strip().lower()
@@ -471,26 +492,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                     blocklist_patterns=conf.blocklist_patterns,
                                 )
                             else:
-                                # Smart routing based on query type
-                                query_type = classify_query_type(text)
-                                logging.info(f"query type: {query_type}")
-                                
-                                # Send instant acknowledgment for non-simple queries
-                                if query_type not in ["factual_time", "factual_weather", "simple"]:
-                                    ack_msg = get_acknowledgment_message(query_type)
-                                    try:
-                                        send_sms(
-                                            account_sid=conf.twilio_account_sid,
-                                            auth_token=conf.twilio_auth_token,
-                                            from_number=conf.twilio_from_number,
-                                            to_number=conf.twilio_to_number,
-                                            body=ack_msg,
-                                        )
-                                        logging.info(f"sent ack SMS: {ack_msg}")
-                                    except Exception as e:
-                                        logging.warning("failed to send ack SMS: %s", e)
-                                
-                                # Handle factual queries without LLM
+                                # Handle factual queries without LLM (query_type already determined above)
                                 if query_type == "factual_time":
                                     reply = f"It's {get_local_time(conf.timezone)}."
                                     sms_to_send = reply
