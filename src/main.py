@@ -384,34 +384,34 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         logging.info("transcript looks like mishear (repeated words), skipping SMS")
                         continue
                     
-                        # Check if SAURON is being directly addressed (multiple trigger words)
-                        trigger_words = ["atlas", "tower", "nexus", "sentinel"]
-                        is_addressed = any(trigger in lower for trigger in trigger_words)
-                        
-                        # Check if it's a question OR command (broader detection)
-                        is_question = (
-                            "?" in text or 
-                            any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
-                        )
-                        
-                        # ⚡ ULTRA-INSTANT ACKNOWLEDGMENT: Send immediately if addressed
-                        if is_addressed and is_question and conf.send_sms_on_questions:
-                            try:
-                                import random
-                                ultra_fast_acks = ["...", "Yep.", "Got it.", "On it.", "One sec.", "Hang on."]
-                                ack_msg = random.choice(ultra_fast_acks)
-                                ack_start = time.time()
-                                send_sms(
-                                    account_sid=conf.twilio_account_sid,
-                                    auth_token=conf.twilio_auth_token,
-                                    from_number=conf.twilio_from_number,
-                                    to_number=conf.twilio_to_number,
-                                    body=ack_msg,
-                                )
-                                ack_time = time.time() - ack_start
-                                logging.info(f"⚡ ULTRA-INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
-                            except Exception as e:
-                                logging.warning("failed to send ultra-instant ack SMS: %s", e)
+                    # Check if SAURON is being directly addressed (multiple trigger words)
+                    trigger_words = ["atlas", "tower", "nexus", "sentinel"]
+                    is_addressed = any(trigger in lower for trigger in trigger_words)
+                    
+                    # Check if it's a question OR command (broader detection)
+                    is_question = (
+                        "?" in text or 
+                        any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
+                    )
+                    
+                    # ⚡ ULTRA-INSTANT ACKNOWLEDGMENT: Send immediately if addressed
+                    if is_addressed and is_question and conf.send_sms_on_questions:
+                        try:
+                            import random
+                            ultra_fast_acks = ["...", "Yep.", "Got it.", "On it.", "One sec.", "Hang on."]
+                            ack_msg = random.choice(ultra_fast_acks)
+                            ack_start = time.time()
+                            send_sms(
+                                account_sid=conf.twilio_account_sid,
+                                auth_token=conf.twilio_auth_token,
+                                from_number=conf.twilio_from_number,
+                                to_number=conf.twilio_to_number,
+                                body=ack_msg,
+                            )
+                            ack_time = time.time() - ack_start
+                            logging.info(f"⚡ ULTRA-INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
+                        except Exception as e:
+                            logging.warning("failed to send ultra-instant ack SMS: %s", e)
                     
                     # ALWAYS log to memory (for context/recall later)
                     memory.add_message("user", text)
