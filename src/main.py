@@ -47,10 +47,11 @@ def classify_query_type(text: str) -> str:
     """
     lower = text.lower()
     
-    # Factual queries - Direct API calls, no LLM needed
-    if any(kw in lower for kw in ["weather", "temperature", "forecast"]):
+    # Factual queries - Direct API calls, no LLM needed (VERY SPECIFIC MATCHES ONLY)
+    if any(kw in lower for kw in ["weather", "temperature", "forecast", "rain", "snow"]):
         return "factual_weather"
-    if any(kw in lower for kw in ["time", "what time", "current time"]):
+    # Only match EXPLICIT time requests, not "how long"
+    if any(phrase in lower for phrase in ["what time is it", "current time", "what's the time", "tell me the time"]):
         return "factual_time"
     
     # Simple queries - Fast LLM responses, minimal context
@@ -77,7 +78,8 @@ def classify_query_type(text: str) -> str:
     ultra_keywords = [
         "compare", "difference between", "better than", "worse than",
         "analyze", "break down", "step by step", "walk me through",
-        "pros and cons", "trade-offs", "evaluate", "recommend"
+        "pros and cons", "trade-offs", "evaluate", "recommend",
+        "how long would it take", "calculate", "physics", "falling", "velocity"
     ]
     if any(kw in lower for kw in ultra_keywords):
         return "ultra"
@@ -337,7 +339,11 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                 # Audio files are kept for 24 hours, then cleaned up by daily worker
                 is_streaming_chunk = "_stream" in wav_path.name
                 
+                # ⏱️  TIMING: Start tracking from audio chunk arrival
+                chunk_arrival_time = time.time()
+                
                 try:
+                    transcribe_start = time.time()
                     text = transcribe(
                         conf.openai_api_key, 
                         wav_path, 
@@ -345,9 +351,12 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         conf.whisper_model_size,
                         conf.nas_whisper_url
                     )
+                    transcribe_time = time.time() - transcribe_start
+                    logging.info(f"⏱️  Transcription time: {transcribe_time:.2f}s")
                 except Exception as e:
                     logging.exception("transcription failed for %s: %s", wav_path, e)
                     text = ""
+                    transcribe_time = 0
                 
                 if text:
                     # Handle streaming vs final chunks
@@ -409,7 +418,8 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                 body=ack_msg,
                             )
                             ack_time = time.time() - ack_start
-                            logging.info(f"⚡ ULTRA-INSTANT ACK sent in {ack_time:.2f}s: {ack_msg}")
+                            time_since_chunk = time.time() - chunk_arrival_time
+                            logging.info(f"⚡ ULTRA-INSTANT ACK sent in {ack_time:.2f}s (total: {time_since_chunk:.2f}s from chunk arrival): {ack_msg}")
                         except Exception as e:
                             logging.warning("failed to send ultra-instant ack SMS: %s", e)
                     
