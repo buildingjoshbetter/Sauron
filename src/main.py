@@ -401,6 +401,8 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                     
                     # Only send SMS if directly addressed AND it's a question
                     if is_addressed and is_question and conf.send_sms_on_questions:
+                        # Start timing the entire response pipeline
+                        pipeline_start = time.time()
                         logging.info("directly addressed with question, processing SMS response")
                         
                         try:
@@ -551,6 +553,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                     full_context = [base_system] + context
                                     
                                     # Get response from selected model
+                                    llm_start = time.time()
                                     logging.info(f"using model: {selected_model}")
                                     reply = chat_openrouter(
                                         conf.openrouter_api_key,
@@ -559,6 +562,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                                         system_override=enhanced_system,
                                         personality=conf.personality_prompt,
                                     )
+                                    llm_time = time.time() - llm_start
+                                    logging.info(f"⏱️  LLM response time: {llm_time:.2f}s")
+                                    
                                     sms_to_send = sanitize_sms(
                                         body=reply,
                                         max_chars=conf.sms_max_chars,
@@ -589,6 +595,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
 
             if sms_to_send:
                 try:
+                    sms_send_start = time.time()
                     send_sms(
                         account_sid=conf.twilio_account_sid,
                         auth_token=conf.twilio_auth_token,
@@ -596,7 +603,15 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         to_number=conf.twilio_to_number,
                         body=sms_to_send,
                     )
-                    logging.info("sms sent: %s", sms_to_send)
+                    sms_send_time = time.time() - sms_send_start
+                    
+                    # Calculate total pipeline time
+                    try:
+                        total_pipeline_time = time.time() - pipeline_start
+                        logging.info("⏱️  TIMING: SMS sent in %.2fs | Total pipeline: %.2fs | Response: %s", 
+                                   sms_send_time, total_pipeline_time, sms_to_send[:100])
+                    except:
+                        logging.info("sms sent: %s", sms_to_send)
                 except Exception as e:
                     logging.exception("failed to send sms: %s", e)
 
