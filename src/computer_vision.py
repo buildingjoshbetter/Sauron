@@ -13,12 +13,12 @@ import time
 
 def capture_video(width: int, height: int, duration: int, out_path: Path) -> bool:
     """
-    Capture video using libcamera-vid.
+    Capture video using rpicam-vid (Pi 5) or libcamera-vid (older Pi).
     Returns True if successful.
     """
-    try:
+    for cmd_base in ["rpicam-vid", "libcamera-vid"]:
         cmd = [
-            "libcamera-vid",
+            cmd_base,
             "-t", str(duration * 1000),  # milliseconds
             "--width", str(width),
             "--height", str(height),
@@ -27,11 +27,15 @@ def capture_video(width: int, height: int, duration: int, out_path: Path) -> boo
             "-n",  # no preview
             "--framerate", "15",
         ]
-        result = subprocess.run(cmd, capture_output=True, timeout=duration + 5)
-        return result.returncode == 0
-    except Exception as e:
-        logging.error("video capture failed: %s", e)
-        return False
+        try:
+            result = subprocess.run(cmd, capture_output=True, timeout=duration + 5, check=True)
+            return result.returncode == 0
+        except (subprocess.CalledProcessError, FileNotFoundError) as e:
+            logging.warning(f"Video capture with {cmd_base} failed: {e}. Trying next option.")
+            continue
+    
+    logging.error("Video capture command not found (tried rpicam-vid and libcamera-vid)")
+    return False
 
 
 def extract_frames(video_path: Path, num_frames: int = 6) -> list[Path]:
