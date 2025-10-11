@@ -258,7 +258,7 @@ def motion_producer(conf, q: queue.Queue[MotionResult]) -> None:
 
 def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResult]) -> None:
     # Initialize advanced memory system (stored on NAS via memory_dir)
-    memory = MemorySystem(conf.memory_dir)
+    memory = MemorySystem(conf.memory_dir, conf.data_dir)
     
     # Base system message
     base_system = {
@@ -274,6 +274,7 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
     # Track streaming chunks to avoid duplicate processing
     current_stream_transcript = ""
     last_stream_timestamp = 0
+    streaming_ack_sent = False  # Track if we already sent ack during streaming
     
     # Track recent vision descriptions (keep last 5)
     recent_vision_descriptions: list[dict] = []
@@ -365,6 +366,31 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         current_stream_transcript = text
                         last_stream_timestamp = time.time()
                         logging.info("streaming transcript (partial): %s", text[:50] + "..." if len(text) > 50 else text)
+                        
+                        # ⚡ INSTANT TRIGGER DETECTION: Check streaming chunk for trigger words
+                        lower_stream = text.lower()
+                        trigger_words = ["atlas", "tower", "nexus", "sentinel"]
+                        if any(trigger in lower_stream for trigger in trigger_words) and not streaming_ack_sent:
+                            # Send instant ack SMS IMMEDIATELY when trigger detected
+                            try:
+                                import random
+                                instant_acks = ["...", "Listening.", "Go ahead.", "I'm here.", "Speak."]
+                                ack_msg = random.choice(instant_acks)
+                                ack_start = time.time()
+                                send_sms(
+                                    account_sid=conf.twilio_account_sid,
+                                    auth_token=conf.twilio_auth_token,
+                                    from_number=conf.twilio_from_number,
+                                    to_number=conf.twilio_to_number,
+                                    body=ack_msg,
+                                )
+                                ack_time = time.time() - ack_start
+                                time_since_chunk = time.time() - chunk_arrival_time
+                                streaming_ack_sent = True  # Mark that we sent ack
+                                logging.info(f"⚡⚡ STREAMING ACK sent in {ack_time:.2f}s (total: {time_since_chunk:.2f}s from chunk): {ack_msg}")
+                            except Exception as e:
+                                logging.warning("failed to send streaming ack SMS: %s", e)
+                        
                         # Don't process yet - wait for final
                         continue
                     elif current_stream_transcript and time.time() - last_stream_timestamp < 5:
@@ -403,8 +429,8 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         any(q in lower for q in ["what", "when", "where", "who", "why", "how", "can you", "could you", "would you", "should i", "is it", "are you", "do you", "remind me", "tell me", "show me"])
                     )
                     
-                    # ⚡ ULTRA-INSTANT ACKNOWLEDGMENT: Send immediately if addressed
-                    if is_addressed and is_question and conf.send_sms_on_questions:
+                    # ⚡ ULTRA-INSTANT ACKNOWLEDGMENT: Send immediately if addressed (only if not already sent during streaming)
+                    if is_addressed and is_question and conf.send_sms_on_questions and not streaming_ack_sent:
                         try:
                             import random
                             ultra_fast_acks = ["...", "Yep.", "Got it.", "On it.", "One sec.", "Hang on."]
@@ -431,6 +457,9 @@ def consumer(conf, audio_q: queue.Queue[Path], motion_q: queue.Queue[MotionResul
                         # Start timing the entire response pipeline
                         pipeline_start = time.time()
                         logging.info("directly addressed with question, processing SMS response")
+                        
+                        # Reset streaming ack flag for next conversation
+                        streaming_ack_sent = False
                         
                         # Classify query type (ultra-instant ack already sent before transcription)
                         query_type = classify_query_type(text)
@@ -669,7 +698,7 @@ def main() -> None:
 
     # Initialize memory first (needed for cleanup worker)
     from .memory import MemorySystem as MemSys
-    memory_for_cleanup = MemSys(conf.memory_dir)
+    memory_for_cleanup = MemSys(conf.memory_dir, conf.data_dir)
 
     threads: list[threading.Thread] = []
     
